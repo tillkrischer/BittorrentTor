@@ -20,41 +20,34 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Random;
 
 public class Torrent {
   
   File torrentFile;
-  
   private String announceUrl;
   private long pieceLength;
   private byte[] pieces;
   private ArrayList<TorrentOutputFile> files;
   private long totalSize;
- 
-  // TODO: do this better
   private long downloaded;
   private long uploaded;
-  
   private byte[] infoHash;
   
   // TODO: these should be done at client startup not here
   private byte[] peerId;
   private int port = 6881;
- 
-  private HashSet<Peer> allPeers;
-  
-  // TODO: read this from global settings ?
   // NOTE: this is only introduced in BEP23, but required for most modern trackers
   private boolean useCompact = true;
-  
+ 
+  private HashSet<Peer> allPeers;
   private byte[] trackerId;
   // interval for tracker request in seconds
   private int trackerInterval;
   private int seederCount;
   private int leecherCount;
-  
   private long lastTrackerRequestTime;
   
   public Torrent(String filename) throws InvalidTorrentFileException, FileNotFoundException {
@@ -62,11 +55,48 @@ public class Torrent {
     parseTorrent();
     generatePeerId();
     allPeers = new HashSet<Peer>();
-    
-    // TODO: this is inaccurate, add up lengths of every file instead
     totalSize = calculateLength();
     downloaded = 0;
     uploaded = 0;
+  }
+  
+  public void start() {
+    trackerRequest("started");
+    
+    // add a main class that handles peer distribution
+    Peer p = getInactivePeer();
+    if(p != null) {
+      System.out.println(p);
+    } else {
+      System.out.println("none found");
+    }
+  }
+  
+  public Peer getInactivePeer() {
+    Peer selected = null;
+    try {
+      Iterator<Peer> it = allPeers.iterator();
+      Peer p;
+      while(it.hasNext() && selected == null) {
+        p = it.next();
+        if (p.state == Peer.PeerState.inactive) {
+          // Dont connect to ourself
+          // TODO: test this with non local addresses
+          //       do we actually need this? will the connection just fail on this case ?
+          String ip = p.address.getHostAddress();
+          String localIp = InetAddress.getLocalHost().getHostAddress();
+          if ((ip.equals(localIp) || ip.equals("127.0.0.1")) && p.port == port) {
+            p.state = Peer.PeerState.bad;
+            System.out.println("ignoring self");
+          } else {
+            selected = p;
+          }
+        }
+      }
+    } catch (UnknownHostException e) {
+      System.out.println("UnknownHostException");
+    }
+    return selected;
   }
   
   public long getTotalSize() {

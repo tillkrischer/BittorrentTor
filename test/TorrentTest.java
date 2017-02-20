@@ -74,4 +74,20 @@ public class TorrentTest {
       fail();
     }
   }
+ 
+  @Test
+  public void ubuntuLocal() {
+    try {
+      Torrent tor = new Torrent("test/resources/local-ubuntu.torrent");
+      tor.trackerRequest("started");
+      tor.trackerRequest();
+      System.out.println();
+    } catch (FileNotFoundException e) {
+      e.printStackTrace();
+      fail();
+    } catch (InvalidTorrentFileException e) {
+      e.printStackTrace();
+      fail();
+    }
+  }
 }
