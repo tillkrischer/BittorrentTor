@@ -20,7 +20,7 @@ public class TorrentTest {
     try {
       Torrent tor = new Torrent("test/resources/ubuntu-16.10-desktop-amd64.iso.torrent");
       String info = byteArrayToHex(tor.getInfoHash());
-      System.out.println(info);
+      System.out.println("infohash: " + info);
     } catch (FileNotFoundException e) {
       e.printStackTrace();
       fail();
@@ -34,6 +34,8 @@ public class TorrentTest {
   public void multifile() {
     try {
       Torrent tor = new Torrent("test/resources/BittorrentTor.torrent");
+      long size = tor.getTotalSize();
+      System.out.println("size: " + size);
     } catch (FileNotFoundException e) {
       e.printStackTrace();
       fail();
@@ -62,10 +64,8 @@ public class TorrentTest {
   public void ubuntuGetPeers() {
     try {
       Torrent tor = new Torrent("test/resources/ubuntu-16.10-desktop-amd64.iso.torrent");
-      Set<Peer> peers = tor.getPeersFromTracker();
-      for (Peer p : peers) {
-        System.out.println(p.address.getHostAddress() + ':' + p.port);
-      }
+      tor.trackerRequest();
+      System.out.println(tor);
     } catch (FileNotFoundException e) {
       e.printStackTrace();
       fail();

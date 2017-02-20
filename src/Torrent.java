@@ -42,16 +42,43 @@ public class Torrent {
   // TODO: these should be done at client startup not here
   private byte[] peerId;
   private int port = 6881;
+ 
+  private HashSet<Peer> allPeers;
+  
+  // TODO: read this from global settings ?
+  // NOTE: this is only introduced in BEP23, but required for most modern trackers
+  private boolean useCompact = true;
+  
+  private byte[] trackerId;
+  // interval for tracker request in seconds
+  private int trackerInterval;
+  private int seederCount;
+  private int leecherCount;
+  
+  private long lastTrackerRequestTime;
   
   public Torrent(String filename) throws InvalidTorrentFileException, FileNotFoundException {
     torrentFile = new File(filename);
     parseTorrent();
     generatePeerId();
+    allPeers = new HashSet<Peer>();
     
     // TODO: this is inaccurate, add up lengths of every file instead
-    totalSize = pieces.length * pieceLength;
+    totalSize = calculateLength();
     downloaded = 0;
     uploaded = 0;
+  }
+  
+  public long getTotalSize() {
+    return totalSize;
+  }
+  
+  private long calculateLength() {
+    long size = 0;
+    for (TorrentOutputFile f : files) {
+      size += f.length;
+    }
+    return size;
   }
   
   private void calculateinfoHash(BencodeDictionary info) throws IOException {
@@ -182,8 +209,11 @@ public class Torrent {
     }
   }
   
-  public HashSet<Peer> getPeersFromTracker() {
-    HashSet<Peer> peers = new HashSet<Peer>();
+  public void trackerRequest() {
+    trackerRequest("");
+  }
+  
+  public void trackerRequest(String event) {
     try {
       HashMap<String, String> parameters = new HashMap<String, String>();
       parameters.put("info_hash", percentEncode(infoHash));
@@ -192,8 +222,17 @@ public class Torrent {
       parameters.put("uploaded", Long.toString(uploaded));
       parameters.put("downloaded", Long.toString(downloaded));
       parameters.put("left", Long.toString(totalSize - downloaded));
-      // NOTE: This is BEP 023, but required by most trackers
-      parameters.put("compact", "1");
+      if (useCompact) {
+        parameters.put("compact", "1");
+      } else {
+        parameters.put("compact", "0");
+      }
+      if (trackerId != null) {
+        parameters.put("trackerid", percentEncode(trackerId));
+      }
+      if (! event.equals("")) {
+        parameters.put("event", event);
+      }
       String s = constructUrl(announceUrl, parameters);
       
       URL url = new URL(s);
@@ -202,45 +241,108 @@ public class Torrent {
       InputStream in = connection.getInputStream();
       BencodeParser parser = new BencodeParser(in);
       BencodeDictionary response = parser.readDictionary();
-      // TODO: parse the rest of the response and check for failure message
-      //       Also be able to parse regular (non compact responses)
-      peers.addAll(extractPeers(response));
+      parseTrackerResponse(response);
+      lastTrackerRequestTime = System.currentTimeMillis();
     } catch (IOException e) {
-      System.out.println("IOError");
+      System.out.println("tracker request error");
+      System.out.println(e.getMessage());
     }  
-    return peers;
+  }
+  
+  private void parseTrackerResponse(BencodeDictionary response) {
+    try {
+      if (response.dict.containsKey("failure reason")) {
+        System.out.println("Tracker request failure:");
+        BencodeByteString reason = (BencodeByteString) response.dict.get("failure reason");
+        System.out.println(reason.getValue());
+        return;
+      }
+      if (response.dict.containsKey("interval")) {
+        BencodeInteger interv = (BencodeInteger) response.dict.get("interval");
+        trackerInterval = interv.value;
+      }
+      if (response.dict.containsKey("tracker id")) {
+        BencodeByteString id = (BencodeByteString) response.dict.get("tracker id");
+        trackerId = id.data;
+      }
+      if (response.dict.containsKey("complete")) {
+        BencodeInteger completeCount = (BencodeInteger) response.dict.get("complete");
+        seederCount = completeCount.value;
+      }
+      if (response.dict.containsKey("incomplete")) {
+        BencodeInteger incompleteCount = (BencodeInteger) response.dict.get("incomplete");
+        leecherCount = incompleteCount.value;
+      }
+      if (response.dict.containsKey("peers")) {
+        BencodeElem peers = response.dict.get("peers");
+        updatePeers(peers);
+      } else {
+        throw new InvalidTrackerResponseException();
+      }
+    } catch (ClassCastException exception) {
+      System.out.println("Error parsing tracker response");
+    } catch (InvalidTrackerResponseException e) {
+      System.out.println("Error parsing tracker response");
+    }
   }
  
   // This parses the "compact" tracker response
-  private HashSet<Peer> extractPeers(BencodeDictionary bdict) {
-    HashSet<Peer> list = new HashSet<Peer>();
-    // TODO: catch casting exception
-    if (bdict.dict.containsKey("peers")) {
-      byte[] peers = ((BencodeByteString) bdict.dict.get("peers")).data;
-      for (int i = 0; i < peers.length / 6; i++) {
-        try {
-          Peer p = new Peer();
-          byte[] ip = new byte[4];
-          for (int j = 0; j < ip.length; j++) {
-            ip[j] = peers[i * 6 + j];
-          }
-          p.address = InetAddress.getByAddress(ip);
-          byte[] port = new byte[2];
-          for (int j = 0; j < port.length; j++) {
-            port[j] = peers[i * 6 + 4 + j];
-          }
-          p.port = (int) bigEndianToInt(port);
-          list.add(p);
-        } catch (UnknownHostException e) {
-          System.out.println("UnknownHostException");
-          e.printStackTrace();
+  private void updatePeers(BencodeElem peers) throws InvalidTrackerResponseException {
+    try {
+      if (peers instanceof BencodeByteString) {
+        //compact response
+        byte[] peerData = ((BencodeByteString) peers).data;
+        if ((peerData.length % 6) != 0) {
+          throw new InvalidTrackerResponseException();
         }
+        for (int i = 0; i < peerData.length / 6; i++) {
+          try {
+            Peer p = new Peer();
+            byte[] ip = new byte[4];
+            for (int j = 0; j < ip.length; j++) {
+              ip[j] = peerData[i * 6 + j];
+            }
+            p.address = InetAddress.getByAddress(ip);
+            byte[] port = new byte[2];
+            for (int j = 0; j < port.length; j++) {
+              port[j] = peerData[i * 6 + 4 + j];
+            }
+            p.port = (int) bigEndianToInt(port);
+            allPeers.add(p);
+          } catch (UnknownHostException e) {
+            System.out.println("UnknownHostException");
+            e.printStackTrace();
+          }
+        }
+      } else if (peers instanceof BencodeList) {
+        // TODO: find a tracker that doesn't force compact to actually test this
+        BencodeList peerList = (BencodeList) peers;
+        for (BencodeElem elem : peerList.list) {
+          try {
+            BencodeDictionary entry = (BencodeDictionary) elem;
+            if((! (entry.dict.containsKey("ip"))) || (! (entry.dict.containsKey("port")))) {
+              throw new InvalidTrackerResponseException();
+            }
+            BencodeByteString ip = (BencodeByteString) entry.dict.get("ip");
+            BencodeInteger port = (BencodeInteger) entry.dict.get("port");
+            Peer p = new Peer();
+            p.address = InetAddress.getByName(ip.getValue());
+            p.port = port.value;
+          } catch (UnknownHostException e) {
+            System.out.println("UnknowHostException");
+          }
+        }
+        
+      } else {
+        throw new InvalidTrackerResponseException();
       }
+    } catch (ClassCastException exception) {
+      System.out.println("Error parsing peers");
+      throw new InvalidTrackerResponseException();
     }
-    return list;
   }
-  
-  public String constructUrl(String base, HashMap<String, String> parameters) {
+        
+  private String constructUrl(String base, HashMap<String, String> parameters) {
     StringBuilder url = new StringBuilder();
     url.append(base);
     url.append('?');
@@ -274,7 +376,7 @@ public class Torrent {
   public static long bigEndianToInt(byte[] data) {
     long value = 0;
     for (int i = 0; i < data.length; i++) {
-      value += ((int)(data[i] & 0x000000ff)) << (data.length - i - 1)*8;
+      value += ((int)(data[i] & 0x000000ff)) << (data.length - i - 1) * 8;
     }
     return value;
   }
