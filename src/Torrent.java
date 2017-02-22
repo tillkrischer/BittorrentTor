@@ -79,7 +79,7 @@ public class Torrent {
     for (int i = 0; i < numberOfPieces; i++) {
       try {
         byte[] data = getPiece(i);
-        if(checkHash(i, data)) {
+        if (checkHash(i, data)) {
           progress.setDownloaded(i);
           count++;
           System.out.println("piece " + i + " was correct");
@@ -100,8 +100,9 @@ public class Torrent {
   
   private byte[] getControlHash(int piece) {
     byte[] hash = new byte[20];
-    for(int i = 0; i < hash.length; i++)
+    for (int i = 0; i < hash.length; i++) {
       hash[i] = pieces[piece * 20 + i];
+    }
     return hash;
   }
   
@@ -123,7 +124,7 @@ public class Torrent {
     long offset = a[1];
     int remainingSize = size;
     int i = 0;
-    while(remainingSize + offset > outFile.length) {
+    while (remainingSize + offset > outFile.length) {
       byte[] data1 = new byte[(int) (outFile.length - offset)];
       outFile.file.seek(offset);
       int read = outFile.file.read(data1);
@@ -157,7 +158,7 @@ public class Torrent {
     long offset = a[1];
     int remainingSize = data.length;
     int i = 0;
-    while(remainingSize + offset > outFile.length) {
+    while (remainingSize + offset > outFile.length) {
       byte[] data1 = new byte[(int) (outFile.length - offset)];
       for (int j = 0; j < data1.length; j++) {
         data1[j] = data[i++];
@@ -346,7 +347,6 @@ public class Torrent {
               || (! d.dict.containsKey("path"))) {
             throw new InvalidTorrentFileException();
           }
-          BencodeInteger l = (BencodeInteger) d.dict.get("length");
           StringBuilder path = new StringBuilder();
           path.append(name);
           BencodeList pathlist = (BencodeList) d.dict.get("path");
@@ -358,6 +358,7 @@ public class Torrent {
             path.append('/');
             path.append(s.getValue());
           }
+          BencodeInteger l = (BencodeInteger) d.dict.get("length");
           TorrentOutputFile t = new TorrentOutputFile(path.toString(), l.value, downloadDir);
           files.add(t);
         }

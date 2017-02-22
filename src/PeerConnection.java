@@ -17,7 +17,10 @@ public class PeerConnection implements Runnable {
   private byte[] myPeerId;
   private byte[] remotePeerId;
   private final String PROTOCOL = "BitTorrent protocol";
-  private boolean amInterested, amChocking, peerInterested, peerChocking;
+  private boolean amInterested;
+  private boolean amChocking;
+  private boolean peerInterested;
+  private boolean peerChocking;
   private Peer peer;
   private boolean isConnected;
   private boolean[] peerPieces;
@@ -72,12 +75,12 @@ public class PeerConnection implements Runnable {
     while (true) {
       try {
         sendBitFiled();
-        while(amInterested || isLeecher()) {
-          if(amInterested && amChocking) {
+        while (amInterested || isLeecher()) {
+          if (amInterested && amChocking) {
             sendUnchoke();
-          } else if(peerInterested && amChocking) {
+          } else if (peerInterested && amChocking) {
             sendUnchoke();
-          } else if(amInterested && ! peerChocking) {
+          } else if (amInterested && ! peerChocking) {
             downloadPiece();
           } else {
             recieveMessage();
@@ -96,9 +99,11 @@ public class PeerConnection implements Runnable {
   }
   
   public boolean isLeecher() {
-    for(boolean b : peerPieces)
-      if(! b)
+    for (boolean b : peerPieces) {
+      if (! b) {
         return true;
+      }
+    }
     return false;
   }
  
@@ -144,8 +149,8 @@ public class PeerConnection implements Runnable {
           //have
           log("recived have");
           read(number);
-          int piece_index = (int) Util.bigEndianToInt(number);
-          setHaveBit(piece_index);
+          int pieceindex = (int) Util.bigEndianToInt(number);
+          setHaveBit(pieceindex);
           updateInterested(); 
           break;
         }
@@ -180,9 +185,9 @@ public class PeerConnection implements Runnable {
           byte[] data = new byte[len - 9];
           read(data);
           log("recieved piece: index: " + index + " begin " + begin);
-          if(index == downloadingPiece.getIndex()) {
+          if (index == downloadingPiece.getIndex()) {
             downloadingPiece.putBlock(begin, data);
-            if(downloadingPiece.queueSize() > 0) {
+            if (downloadingPiece.queueSize() > 0) {
               int[] a = downloadingPiece.popRequest();
               sendRequest(downloadingPiece.getIndex(), a[0], a[1]);
             }
@@ -290,11 +295,14 @@ public class PeerConnection implements Runnable {
     out.write(len);
     out.write(5);
     byte[] bitfield = new byte[x];
-    for(int i = 0; i < x; i++)
+    for (int i = 0; i < x; i++) {
       bitfield[i] = 0;
-    for(int i = 0; i < torrent.getNumberOfPieces(); i++)
-      if(progress.isDownloaded(i))
-        bitfield[i/8] |= 1 << (8 - 1 - i%8);
+    }
+    for (int i = 0; i < torrent.getNumberOfPieces(); i++) {
+      if (progress.isDownloaded(i)) {
+        bitfield[i / 8] |= 1 << (8 - 1 - i % 8);
+      }
+    }
     out.write(bitfield);
     out.flush();
     log("send bitfield " + Arrays.toString(bitfield));
@@ -332,16 +340,16 @@ public class PeerConnection implements Runnable {
   
   public void downloadPiece() throws IOException, InvalidMessageException {
     int i = progress.claimForDownload(peerPieces);
-    if(i != -1) {
+    if (i != -1) {
       downloadingPiece = new Piece(i, torrent.getTotalBytes(), blocksize, torrent.getPieceSize());
       log("Downloading piece " + i);
-      for(int j = 0; j < requestQueueSize && downloadingPiece.queueSize() > 0; j++) {
+      for (int j = 0; j < requestQueueSize && downloadingPiece.queueSize() > 0; j++) {
         int[] a = downloadingPiece.popRequest();
         int blockindex = a[0];
         int length = a[1];
         sendRequest(downloadingPiece.getIndex(), blockindex, length);
       }
-      while(! downloadingPiece.recievedAllBlocks()) {
+      while (! downloadingPiece.recievedAllBlocks()) {
         recieveMessage();
       }
       byte[] a = downloadingPiece.getData();
@@ -351,7 +359,7 @@ public class PeerConnection implements Runnable {
   }
   
   private void setHaveBit(int index) throws InvalidMessageException {
-    if(index >= 0 && index < torrent.getNumberOfPieces()) {
+    if (index >= 0 && index < torrent.getNumberOfPieces()) {
       peerPieces[index] = true;
     } else {
       throw new InvalidMessageException();
@@ -359,31 +367,34 @@ public class PeerConnection implements Runnable {
   }
   
   private void setHaveBits(byte[] field) throws InvalidMessageException {
-    if(field.length == (torrent.getNumberOfPieces() + 7) / 8) {
-      for(int i = 0; i < peerPieces.length; i++)
-        peerPieces[i] = (field[i/8] & (1 << (8 - 1 - i%8))) > 0;
+    if (field.length == (torrent.getNumberOfPieces() + 7) / 8) {
+      for (int i = 0; i < peerPieces.length; i++) {
+        peerPieces[i] = (field[i / 8] & (1 << (8 - 1 - i % 8))) > 0;
+      }
     } else {
       throw new InvalidMessageException();
     }
   }
   
   public void processRequest(int index, int begin, int length) throws IOException {
-    if(seedingPieceIndex != index) {
+    if (seedingPieceIndex != index) {
       seedingPieceData = torrent.getPiece(index);
       seedingPieceIndex = index;
     }
     byte[] block = new byte[length];
-    for(int i = 0; i < block.length; i++)
-      block[i] = seedingPieceData[begin+i];
+    for (int i = 0; i < block.length; i++) {
+      block[i] = seedingPieceData[begin + i];
+    }
     sendPiece(index, begin, block);
   }
   
   public void updateInterested() throws IOException {
     int i = progress.getAvailableMissing(peerPieces);
-    if(i != -1 && ! amInterested)
+    if (i != -1 && ! amInterested) {
       sendInterested();
-    else if(i == -1 && amInterested)
+    } else if (i == -1 && amInterested) {
       sendUninterested();
+    }
   }
   
   private byte read() throws IOException {

@@ -10,8 +10,8 @@ public class Util {
   
   public static byte[] intToBigEndian(long value, int bytes) {
     byte[] data = new byte[bytes];
-    for(int i = 0; i < bytes; i++) {
-      data[bytes-i-1] = (byte) (value & 0x000000ff);
+    for (int i = 0; i < bytes; i++) {
+      data[bytes - i - 1] = (byte) (value & 0x000000ff);
       value >>= 8;
     }
     return data;

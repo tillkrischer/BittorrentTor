@@ -45,7 +45,7 @@ public class Piece {
   }
   
   public boolean recievedAllBlocks() {
-    for(boolean b : recievedBlocks) {
+    for (boolean b : recievedBlocks) {
       if (! b) {
         return false;
       }
