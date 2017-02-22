@@ -80,8 +80,11 @@ public class TorrentTest {
     try {
       Torrent tor = new Torrent("test/resources/local-ubuntu.torrent");
       tor.trackerRequest("started");
-      tor.trackerRequest();
-      System.out.println();
+      tor.connectToPeer();
+      tor.connectToPeer();
+      while (true) {
+        tor.checkConnections();
+      }
     } catch (FileNotFoundException e) {
       e.printStackTrace();
       fail();
@@ -89,5 +92,47 @@ public class TorrentTest {
       e.printStackTrace();
       fail();
     }
+  }
+  
+  @Test
+  public void peerTest() {
+      try {
+        Torrent tor;
+        tor = new Torrent("test/resources/local-ubuntu.torrent");
+        tor.trackerRequest("started");
+        tor.connectToPeer();
+        tor.connectToPeer();
+        while (true) {
+          tor.checkConnections();
+        }
+      } catch (FileNotFoundException | InvalidTorrentFileException e) {
+        System.out.println("error");
+        fail();
+      }
+  }
+  
+  @Test
+  public void wallpaperTest() {
+      try {
+        Torrent tor;
+        tor = new Torrent("test/resources/Wallpapers.torrent");
+      } catch (FileNotFoundException | InvalidTorrentFileException e) {
+        System.out.println("error");
+        System.out.println(e.getMessage());
+        e.printStackTrace();
+      }
+  }
+  
+  @Test
+  public void smallFiles() {
+      try {
+        Torrent tor;
+        tor = new Torrent("test/resources/smallFiles.torrent");
+      } catch (FileNotFoundException | InvalidTorrentFileException e) {
+        System.out.println("error");
+        System.out.println(e.getMessage());
+        e.printStackTrace();
+      }
+        
   }
 }

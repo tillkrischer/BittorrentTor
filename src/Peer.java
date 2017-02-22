@@ -5,7 +5,7 @@ public class Peer {
   
   InetAddress address;
   int port;
-  PeerState state;
+  private PeerState state;
   
   public Peer() {
     state = PeerState.inactive;
@@ -13,6 +13,14 @@ public class Peer {
   
   public String toString() {
     return address.getHostAddress() + ":" + port;
+  }
+  
+  public synchronized void setState(PeerState s) {
+    state = s;
+  }
+  
+  public synchronized PeerState getState() {
+    return state;
   }
   
   @Override
