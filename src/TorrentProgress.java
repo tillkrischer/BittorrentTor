@@ -17,6 +17,10 @@ public class TorrentProgress {
     }
   }
   
+  public synchronized boolean isDone() {
+    return (downloaded.size() == pieces);
+  }
+  
   public synchronized boolean isMissing(int index) {
     return missing.contains(index);
   }

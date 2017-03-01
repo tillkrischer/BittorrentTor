@@ -29,12 +29,15 @@ public class PeerConnection implements Runnable {
   private byte[] seedingPieceData;
   private Piece downloadingPiece;
   
-  public PeerConnection(byte[] peerId, Peer p) throws IOException {
-    socket = new Socket(p.address, p.port);
+  public PeerConnection(Socket s, byte[] peerId, Peer p) throws IOException {
+    socket = s;
     in = new BufferedInputStream(socket.getInputStream());
     out = new BufferedOutputStream(socket.getOutputStream());
     myPeerId = peerId;
     peer = p;
+    
+    amChocking = true;
+    peerChocking = true;
     
     isConnected = false;
   }
@@ -48,10 +51,14 @@ public class PeerConnection implements Runnable {
     progress = torrent.getProgress();
     peerPieces = new boolean[torrent.getNumberOfPieces()];
   }
+  
+  public void setConnected() {
+    isConnected = true;
+  }
 
   @Override
   public void run() {
-    if (torrent != null) {
+    if (! isConnected) {
       try {
         sendHandshake();
         byte[] responseInfoHash = recieveHandshake();
@@ -59,43 +66,35 @@ public class PeerConnection implements Runnable {
           throw new IOException();
         }
         System.out.println("succesful handshake with " + peer);
+        isConnected = true;
       } catch (IOException e) {
         System.out.println("IOError during handshake");
         e.printStackTrace();
-        peer.setState(Peer.PeerState.bad);
+        torrent.markPeerBad(peer);
         return;
       }
-    } else {
-      // TODO: case where we get connected to
-      //recieveHandshake()
-      //sendHandshake()
     }
-    isConnected = true;
-    // TODO: maybe not use infinite loop ?
-    while (true) {
-      try {
-        sendBitFiled();
-        while (amInterested || isLeecher()) {
-          if (amInterested && amChocking) {
-            sendUnchoke();
-          } else if (peerInterested && amChocking) {
-            sendUnchoke();
-          } else if (amInterested && ! peerChocking) {
-            downloadPiece();
-          } else {
-            recieveMessage();
-          }
+    try {
+      System.out.println("lol");
+      sendBitFiled();
+      do {
+        if (amInterested && amChocking) {
+          sendUnchoke();
+        } else if (peerInterested && amChocking) {
+          sendUnchoke();
+        } else if (amInterested && ! peerChocking) {
+          downloadPiece();
+        } else {
+          recieveMessage();
         }
-      } catch (IOException e) {
-        log("IOException");
-        break;
-      } catch (InvalidMessageException e) {
-        log("InvalidMessageException");
-        break;
-      } 
-    }
-    
-    peer.setState(Peer.PeerState.inactive);
+      } while (amInterested || isLeecher());
+    } catch (IOException e) {
+      log("IOException");
+    } catch (InvalidMessageException e) {
+      log("InvalidMessageException");
+    } 
+   
+    torrent.markPeerInactive(peer);
   }
   
   public boolean isLeecher() {
@@ -184,7 +183,8 @@ public class PeerConnection implements Runnable {
           int begin = (int) Util.bigEndianToInt(number);
           byte[] data = new byte[len - 9];
           read(data);
-          log("recieved piece: index: " + index + " begin " + begin);
+          // more quiet
+          // log("received piece: index: " + index + " begin " + begin);
           if (index == downloadingPiece.getIndex()) {
             downloadingPiece.putBlock(begin, data);
             if (downloadingPiece.queueSize() > 0) {
@@ -215,6 +215,7 @@ public class PeerConnection implements Runnable {
   }
   
   public synchronized void sendHandshake() throws IOException {
+    log("sending handshake");
     out.write((byte)19);
     String pstr = PROTOCOL;
     out.write(pstr.getBytes());
@@ -353,7 +354,11 @@ public class PeerConnection implements Runnable {
         recieveMessage();
       }
       byte[] a = downloadingPiece.getData();
-      torrent.writePiece(downloadingPiece.getIndex(), a);
+      if (torrent.writePiece(downloadingPiece.getIndex(), a)) {
+        progress.setDownloaded(downloadingPiece.getIndex());
+      } else {
+        progress.setMissing(downloadingPiece.getIndex());
+      }
       downloadingPiece = null;
     }
   }

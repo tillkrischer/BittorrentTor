@@ -1,26 +1,15 @@
 import java.net.InetAddress;
 
 public class Peer {
-  enum PeerState { inactive, active, bad}
-  
   InetAddress address;
   int port;
-  private PeerState state;
   
   public Peer() {
-    state = PeerState.inactive;
+    
   }
   
   public String toString() {
     return address.getHostAddress() + ":" + port;
-  }
-  
-  public synchronized void setState(PeerState s) {
-    state = s;
-  }
-  
-  public synchronized PeerState getState() {
-    return state;
   }
   
   @Override

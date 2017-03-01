@@ -7,19 +7,12 @@ import org.junit.Test;
 
 public class TorrentTest {
   
-  public static String byteArrayToHex(byte[] a) {
-    StringBuilder sb = new StringBuilder(a.length * 2);
-    for (byte b : a) {
-      sb.append(String.format("%02x", b & 0xff));
-    }
-    return sb.toString();
-  }
 
   @Test
   public void ubuntu() {
     try {
       Torrent tor = new Torrent("test/resources/ubuntu-16.10-desktop-amd64.iso.torrent");
-      String info = byteArrayToHex(tor.getInfoHash());
+      String info = Util.byteArrayToHex(tor.getInfoHash());
       System.out.println("infohash: " + info);
     } catch (FileNotFoundException e) {
       e.printStackTrace();
@@ -83,7 +76,7 @@ public class TorrentTest {
       tor.connectToPeer();
       tor.connectToPeer();
       while (true) {
-        tor.checkConnections();
+        tor.update();
       }
     } catch (FileNotFoundException e) {
       e.printStackTrace();
@@ -103,7 +96,7 @@ public class TorrentTest {
         tor.connectToPeer();
         tor.connectToPeer();
         while (true) {
-          tor.checkConnections();
+          tor.update();
         }
       } catch (FileNotFoundException | InvalidTorrentFileException e) {
         System.out.println("error");
@@ -125,14 +118,28 @@ public class TorrentTest {
   
   @Test
   public void smallFiles() {
-      try {
-        Torrent tor;
-        tor = new Torrent("test/resources/smallFiles.torrent");
-      } catch (FileNotFoundException | InvalidTorrentFileException e) {
-        System.out.println("error");
-        System.out.println(e.getMessage());
-        e.printStackTrace();
-      }
-        
+    try {
+      Torrent tor;
+      tor = new Torrent("test/resources/smallFiles.torrent");
+    } catch (FileNotFoundException | InvalidTorrentFileException e) {
+      System.out.println("error");
+      System.out.println(e.getMessage());
+      e.printStackTrace();
+    }
+  }
+  
+  @Test
+  public void mainTest() {
+    try {
+      Main m = new Main();
+      Thread t = new Thread(m);
+      t.start();
+      m.addTorrent("test/resources/local-ubuntu.torrent");
+      m.startTorrent(0);
+      t.join();
+    } catch (InterruptedException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
   }
 }

@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
+import java.net.Socket;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.security.MessageDigest;
@@ -15,8 +16,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Map;
-import java.util.Random;
 
 import bencode.BencodeByteString;
 import bencode.BencodeDictionary;
@@ -26,6 +27,8 @@ import bencode.BencodeList;
 import bencode.BencodeParser;
 
 public class Torrent {
+
+  enum TorrentState { Paused, Downloading, Seeding }
   
   File torrentFile;
   private String announceUrl;
@@ -33,47 +36,117 @@ public class Torrent {
   private byte[] pieces;
   private ArrayList<TorrentOutputFile> files;
   private long totalSize;
-  private long downloaded;
   private long uploaded;
   private byte[] infoHash;
   private int numberOfPieces;
   
   // TODO: these should be done at client startup not here
   private byte[] peerId;
-  private int port = 6881;
-  private String downloadDir = "test/downloads/";
+  private int port;
+  private String downloadDir;
   // NOTE: this is only introduced in BEP23, but required for most modern trackers
   private boolean useCompact = true;
  
-  private HashSet<Peer> allPeers;
   private byte[] trackerId;
   // interval for tracker request in seconds
   private int trackerInterval;
   private int seederCount;
   private int leecherCount;
   private long lastTrackerRequestTime;
-  
-  private HashMap<PeerConnection, Thread> activePeers;
+ 
+  private HashSet<Peer> activePeers;
+  private HashSet<Peer> inactivePeers;
+  private HashSet<Peer> badPeers;
+  private HashMap<PeerConnection, Thread> activePeerConnections;
   
   private TorrentProgress progress;
+  private TorrentState state;
+ 
+  // to not break old test cases
+  public Torrent(String filename) throws FileNotFoundException, InvalidTorrentFileException {
+    this(filename, Main.generatePeerId("-DE13D0-"), 6881, "test/downloads/");
+  }
   
-  public Torrent(String filename) throws InvalidTorrentFileException, FileNotFoundException {
+  public Torrent(String filename, byte[] peerId, int port, String downloadDir) throws InvalidTorrentFileException, FileNotFoundException {
+    this.state = TorrentState.Paused;
+    this.peerId = peerId;
+    this.port = port;
+    this.downloadDir = downloadDir;
+    
     torrentFile = new File(filename);
     parseTorrent();
-    generatePeerId();
-    activePeers = new HashMap<PeerConnection, Thread>();
-    allPeers = new HashSet<Peer>();
+    activePeerConnections = new HashMap<PeerConnection, Thread>();
+    activePeers = new HashSet<Peer>();
+    inactivePeers = new HashSet<Peer>();
+    badPeers = new HashSet<Peer>();
     totalSize = calculateLength();
-    downloaded = 0;
     uploaded = 0;
     numberOfPieces = (int) ((totalSize + pieceLength - 1) / pieceLength);
     progress = new TorrentProgress(numberOfPieces);
    
     System.out.println("number of pices:" + numberOfPieces);
-    
+   
+    // TODO: asynchronous
     checkProgress();
   }
   
+  public long downloaded() {
+    if (progress.isDone()) {
+      return totalSize;
+    } else {
+      // approximation since last piece might be smaller
+      return pieceLength * progress.piecesDownloaded();
+    }
+  }
+  
+  public boolean isDowloading() {
+    return state == TorrentState.Downloading;
+  }
+  
+  public boolean isSeeding() {
+    return state == TorrentState.Seeding;
+  }
+  
+  public boolean hasInactivePeers() {
+    return inactivePeers.size() > 0;
+  }
+  
+  public synchronized void addPeer(Peer p) {
+    try {
+      if ((! activePeers.contains(p)) && (! inactivePeers.contains(p)) && (! badPeers.contains(p))) {
+        // check if it is our own client and put directly to the bad peers
+        // otherwise put in inactive by default
+        String ip = p.address.getHostAddress();
+        String localIp;
+        localIp = InetAddress.getLocalHost().getHostAddress();
+        if((ip.equals(localIp) || ip.equals("127.0.0.1")) && p.port == port) {
+          markPeerBad(p);
+        } else {
+          inactivePeers.add(p);
+        }
+      }
+    } catch (UnknownHostException e) {
+      System.out.println("unknownhost exception");
+    }
+  }
+  
+  public synchronized void markPeerBad(Peer p) {
+    activePeers.remove(p);
+    inactivePeers.remove(p);
+    badPeers.add(p);
+  }
+  
+  public synchronized void markPeerActive(Peer p) {
+    activePeers.add(p);
+    inactivePeers.remove(p);
+    badPeers.remove(p);
+  }
+  
+  public synchronized void markPeerInactive(Peer p) {
+    activePeers.remove(p);
+    inactivePeers.add(p);
+    badPeers.remove(p);
+  }
   public void checkProgress() {
     int count = 0;
     for (int i = 0; i < numberOfPieces; i++) {
@@ -151,7 +224,11 @@ public class Torrent {
     return data;
   }
   
-  public synchronized void writePiece(int index, byte[] data) throws IOException {
+  public synchronized boolean writePiece(int index, byte[] data) throws IOException {
+    if (! checkHash(index, data)) {
+      System.out.println("invalid hash when writing piece " + index);
+      return false;
+    }
     long[] a = getPieceLocation(index);
     int fileIndex = (int) a[0];
     TorrentOutputFile outFile = files.get(fileIndex);
@@ -176,6 +253,7 @@ public class Torrent {
     }
     outFile.file.seek(offset);
     outFile.file.write(data2);
+    return true;
   }
   
   private long[] getPieceLocation(int index) {
@@ -212,40 +290,66 @@ public class Torrent {
   }
   
   public void start() {
-    trackerRequest("started");
+    System.out.println("starting torrent");
+    if (progress.isDone()) {
+      state = TorrentState.Seeding;
+      trackerRequest();
+    } else {
+      state = TorrentState.Downloading;
+      trackerRequest("started");
+    }
   }
+  
+  public void stop() {
+    state = TorrentState.Paused;
+    System.out.println("stopping torrent");
+    //TODO: actually stop transfer here
+ }
   
   public int getNumActivePeers() {
     return activePeers.size();
   }
   
-  public void checkConnections() {
-    for (Map.Entry<PeerConnection, Thread> entry : activePeers.entrySet()) {
+  public synchronized void update() {
+    checkConnections();
+    if (state == TorrentState.Downloading && progress.isDone()) {
+      state = TorrentState.Seeding;
+    }
+  }
+  
+  private void checkConnections() {
+    LinkedList<PeerConnection> removals = new LinkedList<PeerConnection>();
+    for (Map.Entry<PeerConnection, Thread> entry : activePeerConnections.entrySet()) {
       Thread t = entry.getValue();
       PeerConnection pc = entry.getKey();
       if (! t.isAlive()) {
         System.out.println("connection to peer " + pc.getPeer() + " ended");
+        removals.add(pc);
+        markPeerInactive(pc.getPeer());
       }
+    }
+    for (PeerConnection pc : removals) {
+      activePeerConnections.remove(pc);
     }
   }
  
   // adds and inactive Peer to the active peers
   // PeerConnection asynchronously does the handshake
   // and sets peer state to bad in case of failure
-  public void connectToPeer() {
+  public synchronized void connectToPeer() {
     Peer p = getInactivePeer();
     if (p != null) {
       try {
         System.out.println("trying to connect to peer " + p);
-        PeerConnection pc;
-        pc = new PeerConnection(peerId, p);
+        Socket s = new Socket(p.address, p.port);
+        PeerConnection pc = new PeerConnection(s, peerId, p);
         pc.assignTorrent(this);
         Thread th = new Thread(pc);
         th.start();
-        activePeers.put(pc, th);
-        p.setState(Peer.PeerState.active);
+        activePeerConnections.put(pc, th);
+        markPeerActive(p);
       } catch (IOException e) {
-        p.setState(Peer.PeerState.bad);
+        markPeerBad(p);
         System.out.println("Error opening Socket to " + p);
       }
     } else {
@@ -253,17 +357,20 @@ public class Torrent {
     }
   }
   
+  public synchronized void addConnection(PeerConnection pc) {
+    Thread th = new Thread(pc);
+    th.start();
+    activePeerConnections.put(pc, th);
+    markPeerActive(pc.getPeer());
+  }
+  
   public Peer getInactivePeer() {
-    Peer selected = null;
-    Iterator<Peer> it = allPeers.iterator();
-    Peer p;
-    while (it.hasNext() && selected == null) {
-      p = it.next();
-      if (p.getState() == Peer.PeerState.inactive) {
-        selected = p;
-      }
+    Iterator<Peer> it = inactivePeers.iterator();
+    if (it.hasNext()) {
+      return it.next();
+    } else {
+      return null;
     }
-    return selected;
   }
   
   public long getTotalSize() {
@@ -386,21 +493,6 @@ public class Torrent {
     return infoHash;
   }
   
-  private void generatePeerId() {
-    peerId = new byte[20];
-    int i = 0;
-    // TODO: pretend that we are deluge for now
-    String clientIdent = "-DE13D0-";
-    while (i < clientIdent.length()) {
-      peerId[i] = (byte) clientIdent.charAt(i);
-      i++;
-    }
-    Random rand = new Random();
-    while (i < peerId.length) {
-      peerId[i] = (byte) (rand.nextInt('z' - 'a') + 'a');
-      i++;
-    }
-  }
   
   public void trackerRequest() {
     trackerRequest("");
@@ -413,8 +505,8 @@ public class Torrent {
       parameters.put("peer_id", percentEncode(peerId));
       parameters.put("port", Integer.toString(port));
       parameters.put("uploaded", Long.toString(uploaded));
-      parameters.put("downloaded", Long.toString(downloaded));
-      parameters.put("left", Long.toString(totalSize - downloaded));
+      parameters.put("downloaded", Long.toString(downloaded()));
+      parameters.put("left", Long.toString(totalSize - downloaded()));
       if (useCompact) {
         parameters.put("compact", "1");
       } else {
@@ -478,7 +570,7 @@ public class Torrent {
       System.out.println("Error parsing tracker response");
     }
   }
- 
+  
   private void updatePeers(BencodeElem peers) throws InvalidTrackerResponseException {
     try {
       if (peers instanceof BencodeByteString) {
@@ -500,7 +592,7 @@ public class Torrent {
               port[j] = peerData[i * 6 + 4 + j];
             }
             p.port = (int) Util.bigEndianToInt(port);
-            allPeers.add(p);
+            addPeer(p);
           } catch (UnknownHostException e) {
             System.out.println("UnknownHostException");
             e.printStackTrace();
