@@ -1,3 +1,4 @@
+package torrent;
 import java.io.*;
 import java.net.*;
 import java.util.Arrays;
@@ -5,10 +6,10 @@ import java.util.Arrays;
 public class Listener implements Runnable {
   
   private byte[] peerId;
-  private Main main;
+  private TorrentController main;
   private int port;
   
-  public Listener(byte[] peerId, Main main, int port) {
+  public Listener(byte[] peerId, TorrentController main, int port) {
     this.peerId = peerId;
     this.main = main;
     this.port = port;
@@ -30,7 +31,7 @@ public class Listener implements Runnable {
           byte[] info = pc.recieveHandshake();
           Torrent t = main.getTorrent(info);
           if (t != null) {
-            if (t.isSeeding() 
+            if ((t.isSeeding() || t.isDowloading())
                 && t.getNumActivePeers() < main.maxConnectionsPerTorrent 
                 && main.getNumPeerConnections() < main.maxConnections) {
               pc.assignTorrent(t);

@@ -1,3 +1,4 @@
+package torrent;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -39,6 +40,7 @@ public class Torrent {
   private long uploaded;
   private byte[] infoHash;
   private int numberOfPieces;
+  private String name;
   
   // TODO: these should be done at client startup not here
   private byte[] peerId;
@@ -64,7 +66,7 @@ public class Torrent {
  
   // to not break old test cases
   public Torrent(String filename) throws FileNotFoundException, InvalidTorrentFileException {
-    this(filename, Main.generatePeerId("-DE13D0-"), 6881, "test/downloads/");
+    this(filename, TorrentController.generatePeerId("-DE13D0-"), 6881, "test/downloads/");
   }
   
   public Torrent(String filename, byte[] peerId, int port, String downloadDir) throws InvalidTorrentFileException, FileNotFoundException {
@@ -88,6 +90,10 @@ public class Torrent {
    
     // TODO: asynchronous
     checkProgress();
+  }
+  
+  public String getName() {
+    return name;
   }
   
   public long downloaded() {
@@ -147,6 +153,7 @@ public class Torrent {
     inactivePeers.add(p);
     badPeers.remove(p);
   }
+  
   public void checkProgress() {
     int count = 0;
     for (int i = 0; i < numberOfPieces; i++) {
@@ -283,6 +290,10 @@ public class Torrent {
   
   public TorrentProgress getProgress() {
     return progress;
+  }
+  
+  public double getProgressPercent() {
+    return progress.piecesDownloaded() / (double) numberOfPieces;
   }
   
   public int getNumberOfPieces() {
@@ -429,7 +440,7 @@ public class Torrent {
         throw new InvalidTorrentFileException();
       }
       BencodeByteString n = (BencodeByteString) info.dict.get("name");
-      String name = n.getValue();
+      name = n.getValue();
       BencodeInteger i = (BencodeInteger) info.dict.get("piece length");
       pieceLength = i.value;
       BencodeByteString p = (BencodeByteString) info.dict.get("pieces");

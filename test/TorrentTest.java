@@ -5,6 +5,11 @@ import java.util.Set;
 
 import org.junit.Test;
 
+import torrent.InvalidTorrentFileException;
+import torrent.TorrentController;
+import torrent.Torrent;
+import torrent.Util;
+
 public class TorrentTest {
   
 
@@ -131,12 +136,17 @@ public class TorrentTest {
   @Test
   public void mainTest() {
     try {
-      Main m = new Main();
-      Thread t = new Thread(m);
-      t.start();
-      m.addTorrent("test/resources/local-ubuntu.torrent");
-      m.startTorrent(0);
-      t.join();
+      try {
+        TorrentController m = new TorrentController();
+        Thread t = new Thread(m);
+        t.start();
+        m.addTorrent("test/resources/local-ubuntu.torrent");
+        m.startTorrent(0);
+        t.join();
+      } catch (FileNotFoundException | InvalidTorrentFileException e) {
+        // TODO Auto-generated catch block
+        e.printStackTrace();
+      }
     } catch (InterruptedException e) {
       // TODO Auto-generated catch block
       e.printStackTrace();

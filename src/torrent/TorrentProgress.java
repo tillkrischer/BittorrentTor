@@ -1,3 +1,4 @@
+package torrent;
 import java.util.HashSet;
 
 public class TorrentProgress {

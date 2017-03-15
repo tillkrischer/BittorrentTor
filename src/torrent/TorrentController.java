@@ -1,10 +1,11 @@
+package torrent;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Random;
 
-public class Main implements Runnable {
+public class TorrentController implements Runnable {
   
   private int port = 6881;
   private String downloadDir = "test/downloads/";
@@ -18,7 +19,7 @@ public class Main implements Runnable {
   private HashMap<String, Torrent> infoMap;
   private int peerConnections;
   
-  public Main() {
+  public TorrentController() {
     peerId = generatePeerId(clientIdent); 
     torrents = new ArrayList<Torrent>();
     infoMap = new HashMap<String, Torrent>();
@@ -31,19 +32,23 @@ public class Main implements Runnable {
   @Override
   public void run() {
     while (true) {
-      int count = 0;
-      for (Torrent t : torrents) {
-        t.update();
-      
-        int peers = t.getNumActivePeers();
-        count += peers;
-        if (t.isDowloading() && t.hasInactivePeers() 
-            && peers < maxConnectionsPerTorrent && peerConnections < maxConnections) {
-          t.connectToPeer();
-        }
-      }
-      peerConnections = count;
+      updateTorrents();
     }
+  }
+  
+  public synchronized void updateTorrents() {
+    int count = 0;
+    for (Torrent t : torrents) {
+      t.update();
+    
+      int peers = t.getNumActivePeers();
+      count += peers;
+      if (t.isDowloading() && t.hasInactivePeers() 
+          && peers < maxConnectionsPerTorrent && peerConnections < maxConnections) {
+        t.connectToPeer();
+      }
+    }
+    peerConnections = count;
   }
   
   public int getNumPeerConnections() {
@@ -59,17 +64,19 @@ public class Main implements Runnable {
     torrents.get(index).start();
   }
   
-  public synchronized void addTorrent(String filename) {
-    try {
-      Torrent t = new Torrent(filename);
-      torrents.add(t);
-      System.out.println(Arrays.toString(t.getInfoHash()));
-      infoMap.put(Util.byteArrayToHex(t.getInfoHash()), t);
-    } catch (FileNotFoundException e) {
-      System.out.println("file not found!");
-    } catch (InvalidTorrentFileException e) {
-      System.out.println("invalid torrent file!");
-    }
+  public Torrent getTorrentByIndex(int i) {
+    return torrents.get(i);
+  }
+  
+  public int getNumberOfTorrents() {
+    return torrents.size();
+  }
+  
+  public synchronized void addTorrent(String filename) throws FileNotFoundException, InvalidTorrentFileException {
+    Torrent t = new Torrent(filename, peerId, maxConnections, downloadDir);
+    torrents.add(t);
+    System.out.println(Arrays.toString(t.getInfoHash()));
+    infoMap.put(Util.byteArrayToHex(t.getInfoHash()), t);
   }
   
   public static byte[] generatePeerId(String clientIdent) {
@@ -85,11 +92,5 @@ public class Main implements Runnable {
       i++;
     }
     return id;
-  }
-  
-  public static void main(String[] args) {
-    Main m = new Main();
-    Thread t = new Thread(m);
-    t.start();
   }
 }
