@@ -16,7 +16,7 @@ public class TorrentTableModel extends AbstractTableModel {
   @Override
   public int getColumnCount() {
     // TODO Auto-generated method stub
-    return 3;
+    return 4;
   }
 
   @Override
@@ -38,6 +38,8 @@ public class TorrentTableModel extends AbstractTableModel {
       case 1:
         return t.getTotalBytes();
       case 2:
+        return t.getStateString();
+      case 3:
         return (float) t.getProgressPercent();
     }
     return null;
@@ -54,6 +56,9 @@ public class TorrentTableModel extends AbstractTableModel {
               name = "Size";
               break;
           case 2:
+              name = "State";
+              break;
+          case 3:
               name = "Progress";
               break;
       }

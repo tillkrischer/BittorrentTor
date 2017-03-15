@@ -39,7 +39,7 @@ public class TorrentController implements Runnable {
   public synchronized void updateTorrents() {
     int count = 0;
     for (Torrent t : torrents) {
-      t.update();
+//      t.update();
     
       int peers = t.getNumActivePeers();
       count += peers;
@@ -73,7 +73,7 @@ public class TorrentController implements Runnable {
   }
   
   public synchronized void addTorrent(String filename) throws FileNotFoundException, InvalidTorrentFileException {
-    Torrent t = new Torrent(filename, peerId, maxConnections, downloadDir);
+    Torrent t = new Torrent(filename, peerId, port, downloadDir);
     torrents.add(t);
     System.out.println(Arrays.toString(t.getInfoHash()));
     infoMap.put(Util.byteArrayToHex(t.getInfoHash()), t);

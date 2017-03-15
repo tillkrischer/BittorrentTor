@@ -20,6 +20,8 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Map;
 
+import org.junit.experimental.theories.Theories;
+
 import bencode.BencodeByteString;
 import bencode.BencodeDictionary;
 import bencode.BencodeElem;
@@ -29,7 +31,7 @@ import bencode.BencodeParser;
 
 public class Torrent {
 
-  enum TorrentState { Paused, Downloading, Seeding }
+  enum TorrentState { Paused, Downloading, Seeding, Checking }
   
   File torrentFile;
   private String announceUrl;
@@ -87,9 +89,9 @@ public class Torrent {
     progress = new TorrentProgress(numberOfPieces);
    
     System.out.println("number of pices:" + numberOfPieces);
-   
-    // TODO: asynchronous
-    checkProgress();
+  
+    ProgressChecker checker = new ProgressChecker(this);
+    (new Thread(checker)).start();
   }
   
   public String getName() {
@@ -111,6 +113,18 @@ public class Torrent {
   
   public boolean isSeeding() {
     return state == TorrentState.Seeding;
+  }
+  
+  public String getStateString() {
+    return state.toString();
+  }
+  
+  public TorrentState getState() {
+    return state;
+  }
+  
+  public synchronized void setState(TorrentState state) {
+    this.state = state;
   }
   
   public boolean hasInactivePeers() {
@@ -321,27 +335,34 @@ public class Torrent {
     return activePeers.size();
   }
   
-  public synchronized void update() {
-    checkConnections();
-    if (state == TorrentState.Downloading && progress.isDone()) {
+  public void checkIfDone() {
+    if (progress.isDone() && state == TorrentState.Downloading) {
       state = TorrentState.Seeding;
     }
   }
   
-  private void checkConnections() {
-    LinkedList<PeerConnection> removals = new LinkedList<PeerConnection>();
-    for (Map.Entry<PeerConnection, Thread> entry : activePeerConnections.entrySet()) {
-      Thread t = entry.getValue();
-      PeerConnection pc = entry.getKey();
-      if (! t.isAlive()) {
-        System.out.println("connection to peer " + pc.getPeer() + " ended");
-        removals.add(pc);
-        markPeerInactive(pc.getPeer());
-      }
-    }
-    for (PeerConnection pc : removals) {
-      activePeerConnections.remove(pc);
-    }
+//  public synchronized void update() {
+//    checkConnections();
+//  }
+//  
+//  private void checkConnections() {
+//    LinkedList<PeerConnection> removals = new LinkedList<PeerConnection>();
+//    for (Map.Entry<PeerConnection, Thread> entry : activePeerConnections.entrySet()) {
+//      Thread t = entry.getValue();
+//      PeerConnection pc = entry.getKey();
+//      if (! t.isAlive()) {
+//        System.out.println("connection to peer " + pc.getPeer() + " ended");
+//        removals.add(pc);
+//        markPeerInactive(pc.getPeer());
+//      }
+//    }
+//    for (PeerConnection pc : removals) {
+//      activePeerConnections.remove(pc);
+//    }
+//  }
+  
+  public synchronized void deactivateConncetion(PeerConnection pc) {
+    activePeerConnections.remove(pc);
   }
  
   // adds and inactive Peer to the active peers
@@ -530,6 +551,7 @@ public class Torrent {
         parameters.put("event", event);
       }
       String s = constructUrl(announceUrl, parameters);
+      System.out.println(s);
       
       URL url = new URL(s);
       HttpURLConnection connection = (HttpURLConnection)url.openConnection();

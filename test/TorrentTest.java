@@ -81,7 +81,7 @@ public class TorrentTest {
       tor.connectToPeer();
       tor.connectToPeer();
       while (true) {
-        tor.update();
+//        tor.update();
       }
     } catch (FileNotFoundException e) {
       e.printStackTrace();
@@ -101,7 +101,7 @@ public class TorrentTest {
         tor.connectToPeer();
         tor.connectToPeer();
         while (true) {
-          tor.update();
+//          tor.update();
         }
       } catch (FileNotFoundException | InvalidTorrentFileException e) {
         System.out.println("error");
