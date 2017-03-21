@@ -1,4 +1,5 @@
 package torrent;
+
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,8 +40,6 @@ public class TorrentController implements Runnable {
   public synchronized void updateTorrents() {
     int count = 0;
     for (Torrent t : torrents) {
-//      t.update();
-    
       int peers = t.getNumActivePeers();
       count += peers;
       if (t.isDowloading() && t.hasInactivePeers() 
@@ -72,7 +71,8 @@ public class TorrentController implements Runnable {
     return torrents.size();
   }
   
-  public synchronized void addTorrent(String filename) throws FileNotFoundException, InvalidTorrentFileException {
+  public synchronized void addTorrent(String filename) 
+      throws FileNotFoundException, InvalidTorrentFileException {
     Torrent t = new Torrent(filename, peerId, port, downloadDir);
     torrents.add(t);
     System.out.println(Arrays.toString(t.getInfoHash()));

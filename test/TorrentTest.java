@@ -1,13 +1,12 @@
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.FileNotFoundException;
-import java.util.Set;
-
 import org.junit.Test;
 
 import torrent.InvalidTorrentFileException;
-import torrent.TorrentController;
 import torrent.Torrent;
+import torrent.TorrentController;
 import torrent.Util;
 
 public class TorrentTest {
@@ -81,7 +80,6 @@ public class TorrentTest {
       tor.connectToPeer();
       tor.connectToPeer();
       while (true) {
-//        tor.update();
       }
     } catch (FileNotFoundException e) {
       e.printStackTrace();
@@ -94,31 +92,28 @@ public class TorrentTest {
   
   @Test
   public void peerTest() {
-      try {
-        Torrent tor;
-        tor = new Torrent("test/resources/local-ubuntu.torrent");
-        tor.trackerRequest("started");
-        tor.connectToPeer();
-        tor.connectToPeer();
-        while (true) {
-//          tor.update();
-        }
-      } catch (FileNotFoundException | InvalidTorrentFileException e) {
-        System.out.println("error");
-        fail();
-      }
+    try {
+      Torrent tor;
+      tor = new Torrent("test/resources/local-ubuntu.torrent");
+      tor.trackerRequest("started");
+      tor.connectToPeer();
+      tor.connectToPeer();
+    } catch (FileNotFoundException | InvalidTorrentFileException e) {
+      System.out.println("error");
+      fail();
+    }
   }
   
   @Test
   public void wallpaperTest() {
-      try {
-        Torrent tor;
-        tor = new Torrent("test/resources/Wallpapers.torrent");
-      } catch (FileNotFoundException | InvalidTorrentFileException e) {
-        System.out.println("error");
-        System.out.println(e.getMessage());
-        e.printStackTrace();
-      }
+    try {
+      Torrent tor;
+      tor = new Torrent("test/resources/Wallpapers.torrent");
+    } catch (FileNotFoundException | InvalidTorrentFileException e) {
+      System.out.println("error");
+      System.out.println(e.getMessage());
+      e.printStackTrace();
+    }
   }
   
   @Test

@@ -7,7 +7,7 @@ import javax.swing.SwingWorker;
 import torrent.InvalidTorrentFileException;
 import torrent.TorrentController;
 
-public class AddTorrentWorker extends SwingWorker<Boolean, Object>{
+public class AddTorrentWorker extends SwingWorker<Boolean, Object> {
   
   private TorrentController controller;
   private String filename;

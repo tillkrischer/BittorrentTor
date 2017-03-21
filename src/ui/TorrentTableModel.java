@@ -22,7 +22,7 @@ public class TorrentTableModel extends AbstractTableModel {
   @Override
   public int getRowCount() {
     // TODO Auto-generated method stub
-    if(controller == null) {
+    if (controller == null) {
       System.out.println("null");
       return 0;
     }
@@ -32,7 +32,7 @@ public class TorrentTableModel extends AbstractTableModel {
   @Override
   public Object getValueAt(int row, int column) {
     Torrent t = controller.getTorrentByIndex(row);
-    switch(column) {
+    switch (column) {
       case 0:
         return t.getName();
       case 1:
@@ -41,27 +41,31 @@ public class TorrentTableModel extends AbstractTableModel {
         return t.getStateString();
       case 3:
         return (float) t.getProgressPercent();
+      default:
+        break;
     }
     return null;
   }
  
   @Override
   public String getColumnName(int column) {
-      String name = "??";
-      switch (column) {
-          case 0:
-              name = "Name";
-              break;
-          case 1:
-              name = "Size";
-              break;
-          case 2:
-              name = "State";
-              break;
-          case 3:
-              name = "Progress";
-              break;
-      }
-      return name;
+    String name = "??";
+    switch (column) {
+      case 0:
+        name = "Name";
+        break;
+      case 1:
+        name = "Size";
+        break;
+      case 2:
+        name = "State";
+        break;
+      case 3:
+        name = "Progress";
+        break;
+      default:
+        break;
+    }
+    return name;
   }
 }

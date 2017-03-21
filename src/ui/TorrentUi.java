@@ -21,7 +21,7 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 
 import torrent.TorrentController;
 
-public class TorrentUI implements ActionListener {
+public class TorrentUi implements ActionListener {
   
   private TorrentController controller;
   private JFrame frame;
@@ -29,7 +29,7 @@ public class TorrentUI implements ActionListener {
   private JTable table;
   private Timer timer;
   
-  public TorrentUI() {
+  public TorrentUi() {
     controller = new TorrentController();
     model = new TorrentTableModel(controller);
     Thread t = new Thread(controller);
@@ -37,7 +37,7 @@ public class TorrentUI implements ActionListener {
     
     javax.swing.SwingUtilities.invokeLater(new Runnable() {
       public void run() {
-        createAndShowGUI();
+        createAndShowGui();
       }
     });
     timer = new Timer(200, this);
@@ -77,12 +77,9 @@ public class TorrentUI implements ActionListener {
   }
   
   public void addComponentsToPane(Container pane) {
-    JButton button;
     pane.setLayout(new GridBagLayout());
     GridBagConstraints c;
 
-    JPanel controls = getControlPanel();
-    button = new JButton("Button 1");
     c = new GridBagConstraints();
     c.gridx = 0;
     c.gridy = 0;
@@ -91,9 +88,9 @@ public class TorrentUI implements ActionListener {
     c.ipadx = 100;
     c.weightx = 1.0;
     c.weighty = 0.0;
+    JPanel controls = getControlPanel();
     pane.add(controls, c);
     
-    button = new JButton("Button 2");
     c = new GridBagConstraints();
     c.gridx = 0;
     c.gridy = 1;
@@ -101,9 +98,9 @@ public class TorrentUI implements ActionListener {
     c.ipady = 500;
     c.weightx = 0.0;
     c.weighty = 1.0;
+    JButton button = new JButton("Button 2");
     pane.add(button, c);
 
-    table = getTable();
     c = new GridBagConstraints();
     c.gridx = 1;
     c.gridy = 1;
@@ -111,9 +108,9 @@ public class TorrentUI implements ActionListener {
     c.ipadx = 800;
     c.weightx = 0.5;
     c.weighty = 0.5;
+    table = getTable();
     pane.add(new JScrollPane(table), c);
 
-    button = new JButton("Button 4");
     c = new GridBagConstraints();
     c.gridx = 0;
     c.gridy = 2;
@@ -122,10 +119,11 @@ public class TorrentUI implements ActionListener {
     c.ipady = 200;
     c.weightx = 1.0;
     c.weighty = 0.0;
+    button = new JButton("Button 4");
     pane.add(button, c);
   }
 
-  private void createAndShowGUI() {
+  private void createAndShowGui() {
     frame = new JFrame("Torrent");
     frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
@@ -138,7 +136,7 @@ public class TorrentUI implements ActionListener {
   @Override
   public void actionPerformed(ActionEvent e) {
     String command = e.getActionCommand();
-    switch(command) {
+    switch (command) {
       case "add":
         addTorrent();
         break;
@@ -149,20 +147,21 @@ public class TorrentUI implements ActionListener {
         pauseTorrent();
         break;
       case "update":
-        updateUI();
+        updateUi();
+        break;
+      default:
         break;
     }
   }
   
   public void addTorrent() {
     JFileChooser fc = new JFileChooser();
-    File file = null;
     File directory = new File(System.getProperty("user.dir"));
     fc.setCurrentDirectory(directory);
     FileNameExtensionFilter filter = new FileNameExtensionFilter("Torrent file", "torrent");
     fc.setFileFilter(filter);
     fc.showSaveDialog(frame);
-    file = fc.getSelectedFile();
+    File file = fc.getSelectedFile();
     if (file != null) {
       AddTorrentWorker worker = new AddTorrentWorker(controller, file.getAbsolutePath());
       worker.execute();
@@ -177,7 +176,7 @@ public class TorrentUI implements ActionListener {
     
   }
   
-  public void updateUI() {
+  public void updateUi() {
     int selected = table.getSelectedRow();
     model.fireTableDataChanged();
     if (selected != -1) {
@@ -190,20 +189,16 @@ public class TorrentUI implements ActionListener {
       // Set cross-platform Java L&F (also called "Metal")
       UIManager.setLookAndFeel(
           UIManager.getSystemLookAndFeelClassName());
-    } 
-    catch (UnsupportedLookAndFeelException e) {
+    } catch (UnsupportedLookAndFeelException e) {
+      // handle exception
+    } catch (ClassNotFoundException e) {
+      // handle exception
+    } catch (InstantiationException e) {
+      // handle exception
+    } catch (IllegalAccessException e) {
       // handle exception
     }
-    catch (ClassNotFoundException e) {
-      // handle exception
-    }
-    catch (InstantiationException e) {
-      // handle exception
-    }
-    catch (IllegalAccessException e) {
-      // handle exception
-    }
-    new TorrentUI();
+    new TorrentUi();
   }
 
 }

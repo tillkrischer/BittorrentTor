@@ -1,7 +1,8 @@
 package torrent;
-import java.io.*;
-import java.net.*;
-import java.util.Arrays;
+
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
 
 public class Listener implements Runnable {
   
@@ -19,14 +20,14 @@ public class Listener implements Runnable {
   public void run() {
     try {
       ServerSocket serverSocket = new ServerSocket(port);
-      while(true) {
+      while (true) {
         Socket clientSocket = serverSocket.accept();
         Peer p = new Peer();
         p.address = clientSocket.getInetAddress();
         p.port = clientSocket.getPort();
-        System.out.println("client connected from " + clientSocket.getInetAddress() + ":" + clientSocket.getPort());
+        System.out.println("client connected from " + clientSocket.getInetAddress()
+             + ":" + clientSocket.getPort());
         try {
-          // TODO: asynchronous !!
           PeerConnection pc = new PeerConnection(clientSocket, peerId, p);
           byte[] info = pc.recieveHandshake();
           Torrent t = main.getTorrent(info);

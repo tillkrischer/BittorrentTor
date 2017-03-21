@@ -1,4 +1,12 @@
 package torrent;
+
+import bencode.BencodeByteString;
+import bencode.BencodeDictionary;
+import bencode.BencodeElem;
+import bencode.BencodeInteger;
+import bencode.BencodeList;
+import bencode.BencodeParser;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -17,17 +25,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.Map;
-
-import org.junit.experimental.theories.Theories;
-
-import bencode.BencodeByteString;
-import bencode.BencodeDictionary;
-import bencode.BencodeElem;
-import bencode.BencodeInteger;
-import bencode.BencodeList;
-import bencode.BencodeParser;
 
 public class Torrent {
 
@@ -71,7 +69,8 @@ public class Torrent {
     this(filename, TorrentController.generatePeerId("-DE13D0-"), 6881, "test/downloads/");
   }
   
-  public Torrent(String filename, byte[] peerId, int port, String downloadDir) throws InvalidTorrentFileException, FileNotFoundException {
+  public Torrent(String filename, byte[] peerId, int port, String downloadDir)
+      throws InvalidTorrentFileException, FileNotFoundException {
     this.state = TorrentState.Paused;
     this.peerId = peerId;
     this.port = port;
@@ -133,13 +132,14 @@ public class Torrent {
   
   public synchronized void addPeer(Peer p) {
     try {
-      if ((! activePeers.contains(p)) && (! inactivePeers.contains(p)) && (! badPeers.contains(p))) {
+      if ((! activePeers.contains(p)) && (! inactivePeers.contains(p)) 
+          && (! badPeers.contains(p))) {
         // check if it is our own client and put directly to the bad peers
         // otherwise put in inactive by default
         String ip = p.address.getHostAddress();
         String localIp;
         localIp = InetAddress.getLocalHost().getHostAddress();
-        if((ip.equals(localIp) || ip.equals("127.0.0.1")) && p.port == port) {
+        if ((ip.equals(localIp) || ip.equals("127.0.0.1")) && p.port == port) {
           markPeerBad(p);
         } else {
           inactivePeers.add(p);
@@ -329,7 +329,7 @@ public class Torrent {
     state = TorrentState.Paused;
     System.out.println("stopping torrent");
     //TODO: actually stop transfer here
- }
+  }
   
   public int getNumActivePeers() {
     return activePeers.size();
@@ -340,26 +340,6 @@ public class Torrent {
       state = TorrentState.Seeding;
     }
   }
-  
-//  public synchronized void update() {
-//    checkConnections();
-//  }
-//  
-//  private void checkConnections() {
-//    LinkedList<PeerConnection> removals = new LinkedList<PeerConnection>();
-//    for (Map.Entry<PeerConnection, Thread> entry : activePeerConnections.entrySet()) {
-//      Thread t = entry.getValue();
-//      PeerConnection pc = entry.getKey();
-//      if (! t.isAlive()) {
-//        System.out.println("connection to peer " + pc.getPeer() + " ended");
-//        removals.add(pc);
-//        markPeerInactive(pc.getPeer());
-//      }
-//    }
-//    for (PeerConnection pc : removals) {
-//      activePeerConnections.remove(pc);
-//    }
-//  }
   
   public synchronized void deactivateConncetion(PeerConnection pc) {
     activePeerConnections.remove(pc);
@@ -525,7 +505,6 @@ public class Torrent {
     return infoHash;
   }
   
-  
   public void trackerRequest() {
     trackerRequest("");
   }
@@ -633,7 +612,6 @@ public class Torrent {
           }
         }
       } else if (peers instanceof BencodeList) {
-        // TODO: find a tracker that doesn't force compact to actually test this
         BencodeList peerList = (BencodeList) peers;
         for (BencodeElem elem : peerList.list) {
           try {

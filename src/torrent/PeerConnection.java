@@ -1,4 +1,5 @@
 package torrent;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.EOFException;
@@ -17,7 +18,7 @@ public class PeerConnection implements Runnable {
   private Torrent torrent;
   private byte[] myPeerId;
   private byte[] remotePeerId;
-  private final String PROTOCOL = "BitTorrent protocol";
+  private final String protocolString = "BitTorrent protocol";
   private boolean amInterested;
   private boolean amChocking;
   private boolean peerInterested;
@@ -186,9 +187,11 @@ public class PeerConnection implements Runnable {
         case 7: {
           //piece
           read(number);
-          int index = (int) Util.bigEndianToInt(number);
+          int index;
+          index = (int) Util.bigEndianToInt(number);
           read(number);
-          int begin = (int) Util.bigEndianToInt(number);
+          int begin;
+          begin = (int) Util.bigEndianToInt(number);
           if (len < 9) {
             throw new InvalidMessageException();
           }
@@ -228,7 +231,7 @@ public class PeerConnection implements Runnable {
   public synchronized void sendHandshake() throws IOException {
     log("sending handshake");
     out.write((byte)19);
-    String pstr = PROTOCOL;
+    String pstr = protocolString;
     out.write(pstr.getBytes());
     for (int i = 0; i < 8; i++) {
       out.write(0);
@@ -243,7 +246,7 @@ public class PeerConnection implements Runnable {
     byte[] pstr = new byte[length];
     read(pstr);
     String s = new String(pstr, "UTF-8");
-    if (! s.equals(PROTOCOL)) {
+    if (! s.equals(protocolString)) {
       throw new IOException("protocol wrong");
     }
     byte[] infohash = new byte[20];
