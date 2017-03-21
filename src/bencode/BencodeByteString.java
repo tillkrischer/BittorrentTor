@@ -3,6 +3,7 @@ package bencode;
 import java.io.UnsupportedEncodingException;
 
 public class BencodeByteString extends BencodeElem {
+
   public byte[] data;
 
   public String getValue() {

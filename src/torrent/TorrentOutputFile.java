@@ -5,10 +5,11 @@ import java.io.FileNotFoundException;
 import java.io.RandomAccessFile;
 
 public class TorrentOutputFile {
+
   String path;
   long length;
   RandomAccessFile file;
-  
+
   public TorrentOutputFile(String path, long length, String downloadDir) {
     try {
       this.path = path;
@@ -19,7 +20,7 @@ public class TorrentOutputFile {
       e.printStackTrace();
     }
   }
-  
+
   public void openFile(String downloadDir) throws FileNotFoundException {
     String fullPath = downloadDir + path;
     File folder = new File(fullPath.substring(0, fullPath.lastIndexOf('/')));

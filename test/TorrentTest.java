@@ -11,20 +11,38 @@ import torrent.TorrentController;
 import torrent.Util;
 
 public class TorrentTest {
-  
 
   @Test
-  public void ubuntu() {
+  public void invalid() {
+    boolean caught = false;
     try {
-      Torrent tor = new Torrent("test/resources/ubuntu-16.10-desktop-amd64.iso.torrent");
-      String info = Util.byteArrayToHex(tor.getInfoHash());
-      System.out.println("infohash: " + info);
+      Torrent tor = new Torrent("test/resources/ubuntu-invalid.torrent");
     } catch (FileNotFoundException e) {
       e.printStackTrace();
       fail();
     } catch (InvalidTorrentFileException e) {
+      caught = true;
+    }
+    assertTrue(caught);
+  }
+
+  @Test
+  public void mainTest() {
+    try {
+      try {
+        TorrentController m = new TorrentController();
+        Thread t = new Thread(m);
+        t.start();
+        m.addTorrent("test/resources/local-ubuntu.torrent");
+        m.startTorrent(0);
+        t.join();
+      } catch (FileNotFoundException | InvalidTorrentFileException e) {
+        // TODO Auto-generated catch block
+        e.printStackTrace();
+      }
+    } catch (InterruptedException e) {
+      // TODO Auto-generated catch block
       e.printStackTrace();
-      fail();
     }
   }
 
@@ -42,22 +60,48 @@ public class TorrentTest {
       fail();
     }
   }
-  
-  
+
   @Test
-  public void invalid() {
-    boolean caught = false;
+  public void peerTest() {
     try {
-      Torrent tor = new Torrent("test/resources/ubuntu-invalid.torrent");
+      Torrent tor;
+      tor = new Torrent("test/resources/local-ubuntu.torrent");
+      tor.trackerRequest("started");
+      tor.connectToPeer();
+      tor.connectToPeer();
+    } catch (FileNotFoundException | InvalidTorrentFileException e) {
+      System.out.println("error");
+      fail();
+    }
+  }
+
+  @Test
+  public void smallFiles() {
+    try {
+      Torrent tor;
+      tor = new Torrent("test/resources/smallFiles.torrent");
+    } catch (FileNotFoundException | InvalidTorrentFileException e) {
+      System.out.println("error");
+      System.out.println(e.getMessage());
+      e.printStackTrace();
+    }
+  }
+
+  @Test
+  public void ubuntu() {
+    try {
+      Torrent tor = new Torrent("test/resources/ubuntu-16.10-desktop-amd64.iso.torrent");
+      String info = Util.byteArrayToHex(tor.getInfoHash());
+      System.out.println("infohash: " + info);
     } catch (FileNotFoundException e) {
       e.printStackTrace();
       fail();
     } catch (InvalidTorrentFileException e) {
-      caught = true;
+      e.printStackTrace();
+      fail();
     }
-    assertTrue(caught);
   }
-  
+
   @Test
   public void ubuntuGetPeers() {
     try {
@@ -72,7 +116,7 @@ public class TorrentTest {
       fail();
     }
   }
- 
+
   @Test
   public void ubuntuLocal() {
     try {
@@ -90,21 +134,7 @@ public class TorrentTest {
       fail();
     }
   }
-  
-  @Test
-  public void peerTest() {
-    try {
-      Torrent tor;
-      tor = new Torrent("test/resources/local-ubuntu.torrent");
-      tor.trackerRequest("started");
-      tor.connectToPeer();
-      tor.connectToPeer();
-    } catch (FileNotFoundException | InvalidTorrentFileException e) {
-      System.out.println("error");
-      fail();
-    }
-  }
-  
+
   @Test
   public void wallpaperTest() {
     try {
@@ -113,38 +143,6 @@ public class TorrentTest {
     } catch (FileNotFoundException | InvalidTorrentFileException e) {
       System.out.println("error");
       System.out.println(e.getMessage());
-      e.printStackTrace();
-    }
-  }
-  
-  @Test
-  public void smallFiles() {
-    try {
-      Torrent tor;
-      tor = new Torrent("test/resources/smallFiles.torrent");
-    } catch (FileNotFoundException | InvalidTorrentFileException e) {
-      System.out.println("error");
-      System.out.println(e.getMessage());
-      e.printStackTrace();
-    }
-  }
-  
-  @Test
-  public void mainTest() {
-    try {
-      try {
-        TorrentController m = new TorrentController();
-        Thread t = new Thread(m);
-        t.start();
-        m.addTorrent("test/resources/local-ubuntu.torrent");
-        m.startTorrent(0);
-        t.join();
-      } catch (FileNotFoundException | InvalidTorrentFileException e) {
-        // TODO Auto-generated catch block
-        e.printStackTrace();
-      }
-    } catch (InterruptedException e) {
-      // TODO Auto-generated catch block
       e.printStackTrace();
     }
   }

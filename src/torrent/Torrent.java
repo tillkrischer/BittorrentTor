@@ -78,7 +78,6 @@ public class Torrent {
   private byte[] infoHash;
   private int numberOfPieces;
   private String name;
-  // TODO: these should be done at client startup not here
   private byte[] peerId;
 
   private int port;

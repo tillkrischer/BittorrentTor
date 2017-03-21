@@ -3,25 +3,12 @@ package torrent;
 import java.net.InetAddress;
 
 public class Peer {
+
   InetAddress address;
   int port;
-  
+
   public Peer() {
-    
-  }
-  
-  @Override
-  public String toString() {
-    return address.getHostAddress() + ":" + port;
-  }
-  
-  @Override
-  public int hashCode() {
-    final int prime = 31;
-    int result = 1;
-    result = prime * result + ((address == null) ? 0 : address.hashCode());
-    result = prime * result + port;
-    return result;
+
   }
 
   @Override
@@ -47,5 +34,19 @@ public class Peer {
       return false;
     }
     return true;
+  }
+
+  @Override
+  public int hashCode() {
+    final int prime = 31;
+    int result = 1;
+    result = (prime * result) + ((address == null) ? 0 : address.hashCode());
+    result = (prime * result) + port;
+    return result;
+  }
+
+  @Override
+  public String toString() {
+    return address.getHostAddress() + ":" + port;
   }
 }

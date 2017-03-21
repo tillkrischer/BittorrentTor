@@ -22,19 +22,35 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import torrent.TorrentController;
 
 public class TorrentUi implements ActionListener {
-  
+
+  public static void main(String[] args) {
+    try {
+      UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+    } catch (UnsupportedLookAndFeelException e) {
+      // handle exception
+    } catch (ClassNotFoundException e) {
+      // handle exception
+    } catch (InstantiationException e) {
+      // handle exception
+    } catch (IllegalAccessException e) {
+      // handle exception
+    }
+    new TorrentUi();
+  }
+
   private TorrentController controller;
   private JFrame frame;
   private TorrentTableModel model;
   private JTable table;
+
   private Timer timer;
-  
+
   public TorrentUi() {
     controller = new TorrentController();
     model = new TorrentTableModel(controller);
     Thread t = new Thread(controller);
     t.start();
-    
+
     javax.swing.SwingUtilities.invokeLater(new Runnable() {
       @Override
       public void run() {
@@ -46,37 +62,28 @@ public class TorrentUi implements ActionListener {
     timer.setRepeats(true);
     timer.start();
   }
-  
-  public JTable getTable() {
-    JTable table = new JTable();
-    table.setModel(model);
-    table.setRowSelectionAllowed(true);
-    table.getColumn("Progress").setCellRenderer(new ProgressCellRender());
-    return table;
+
+  @Override
+  public void actionPerformed(ActionEvent e) {
+    String command = e.getActionCommand();
+    switch (command) {
+      case "add":
+        addTorrent();
+        break;
+      case "start":
+        startTorrent();
+        break;
+      case "pause":
+        pauseTorrent();
+        break;
+      case "update":
+        updateUi();
+        break;
+      default:
+        break;
+    }
   }
-  
-  public JPanel getControlPanel() {
-    JPanel controls = new JPanel();
-    controls.setLayout(new FlowLayout(FlowLayout.LEFT));
-    
-    JButton add = new JButton("add");
-    add.setActionCommand("add");
-    add.addActionListener(this);
-    controls.add(add);
-    
-    JButton start = new JButton("start");
-    start.setActionCommand("start");
-    start.addActionListener(this);
-    controls.add(start);
-    
-    JButton pause = new JButton("pause");
-    pause.setActionCommand("pause");
-    pause.addActionListener(this);
-    controls.add(pause);
-    
-    return controls;
-  }
-  
+
   public void addComponentsToPane(Container pane) {
     pane.setLayout(new GridBagLayout());
     GridBagConstraints c;
@@ -91,7 +98,7 @@ public class TorrentUi implements ActionListener {
     c.weighty = 0.0;
     JPanel controls = getControlPanel();
     pane.add(controls, c);
-    
+
     c = new GridBagConstraints();
     c.gridx = 0;
     c.gridy = 1;
@@ -124,37 +131,6 @@ public class TorrentUi implements ActionListener {
     pane.add(button, c);
   }
 
-  private void createAndShowGui() {
-    frame = new JFrame("Torrent");
-    frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-
-    addComponentsToPane(frame.getContentPane());
-
-    frame.pack();
-    frame.setVisible(true);
-  }
-
-  @Override
-  public void actionPerformed(ActionEvent e) {
-    String command = e.getActionCommand();
-    switch (command) {
-      case "add":
-        addTorrent();
-        break;
-      case "start":
-        startTorrent();
-        break;
-      case "pause":
-        pauseTorrent();
-        break;
-      case "update":
-        updateUi();
-        break;
-      default:
-        break;
-    }
-  }
-  
   public void addTorrent() {
     JFileChooser fc = new JFileChooser();
     File directory = new File(System.getProperty("user.dir"));
@@ -168,15 +144,55 @@ public class TorrentUi implements ActionListener {
       worker.execute();
     }
   }
-  
+
+  private void createAndShowGui() {
+    frame = new JFrame("Torrent");
+    frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+    addComponentsToPane(frame.getContentPane());
+
+    frame.pack();
+    frame.setVisible(true);
+  }
+
+  public JPanel getControlPanel() {
+    JPanel controls = new JPanel();
+    controls.setLayout(new FlowLayout(FlowLayout.LEFT));
+
+    JButton add = new JButton("add");
+    add.setActionCommand("add");
+    add.addActionListener(this);
+    controls.add(add);
+
+    JButton start = new JButton("start");
+    start.setActionCommand("start");
+    start.addActionListener(this);
+    controls.add(start);
+
+    JButton pause = new JButton("pause");
+    pause.setActionCommand("pause");
+    pause.addActionListener(this);
+    controls.add(pause);
+
+    return controls;
+  }
+
+  public JTable getTable() {
+    JTable table = new JTable();
+    table.setModel(model);
+    table.setRowSelectionAllowed(true);
+    table.getColumn("Progress").setCellRenderer(new ProgressCellRender());
+    return table;
+  }
+
+  public void pauseTorrent() {
+
+  }
+
   public void startTorrent() {
     controller.startTorrent(table.getSelectedRow());
   }
-  
-  public void pauseTorrent() {
-    
-  }
-  
+
   public void updateUi() {
     int selected = table.getSelectedRow();
     model.fireTableDataChanged();
@@ -184,22 +200,4 @@ public class TorrentUi implements ActionListener {
       table.setRowSelectionInterval(selected, selected);
     }
   }
-  
-  public static void main(String[] args) {
-    try {
-      // Set cross-platform Java L&F (also called "Metal")
-      UIManager.setLookAndFeel(
-          UIManager.getSystemLookAndFeelClassName());
-    } catch (UnsupportedLookAndFeelException e) {
-      // handle exception
-    } catch (ClassNotFoundException e) {
-      // handle exception
-    } catch (InstantiationException e) {
-      // handle exception
-    } catch (IllegalAccessException e) {
-      // handle exception
-    }
-    new TorrentUi();
-  }
-
 }
