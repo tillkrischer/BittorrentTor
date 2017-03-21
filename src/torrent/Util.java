@@ -4,7 +4,7 @@ public class Util {
   public static long bigEndianToInt(byte[] data) {
     long value = 0;
     for (int i = 0; i < data.length; i++) {
-      value += ((int)(data[i] & 0x000000ff)) << (data.length - i - 1) * 8;
+      value += (data[i] & 0x000000ff) << (data.length - i - 1) * 8;
     }
     return value;
   }

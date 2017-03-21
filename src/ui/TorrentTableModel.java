@@ -6,17 +6,39 @@ import torrent.Torrent;
 import torrent.TorrentController;
 
 public class TorrentTableModel extends AbstractTableModel {
-  
+
   private TorrentController controller;
 
   public TorrentTableModel(TorrentController tc) {
     controller = tc;
   }
-  
+
   @Override
   public int getColumnCount() {
     // TODO Auto-generated method stub
     return 4;
+  }
+
+  @Override
+  public String getColumnName(int column) {
+    String name = "??";
+    switch (column) {
+      case 0:
+        name = "Name";
+        break;
+      case 1:
+        name = "Size";
+        break;
+      case 2:
+        name = "State";
+        break;
+      case 3:
+        name = "Progress";
+        break;
+      default:
+        break;
+    }
+    return name;
   }
 
   @Override
@@ -45,27 +67,5 @@ public class TorrentTableModel extends AbstractTableModel {
         break;
     }
     return null;
-  }
- 
-  @Override
-  public String getColumnName(int column) {
-    String name = "??";
-    switch (column) {
-      case 0:
-        name = "Name";
-        break;
-      case 1:
-        name = "Size";
-        break;
-      case 2:
-        name = "State";
-        break;
-      case 3:
-        name = "Progress";
-        break;
-      default:
-        break;
-    }
-    return name;
   }
 }
