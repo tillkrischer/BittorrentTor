@@ -563,6 +563,7 @@ public class Torrent {
       lastTrackerRequestTime = System.currentTimeMillis();
     } catch (IOException e) {
       System.out.println("tracker request error");
+      e.printStackTrace();
       System.out.println(e.getMessage());
     }  
   }
@@ -645,6 +646,7 @@ public class Torrent {
             Peer p = new Peer();
             p.address = InetAddress.getByName(ip.getValue());
             p.port = port.value;
+            addPeer(p);
           } catch (UnknownHostException e) {
             System.out.println("UnknowHostException");
           }
