@@ -190,7 +190,9 @@ public class TorrentUi implements ActionListener {
   }
 
   public void startTorrent() {
-    controller.startTorrent(table.getSelectedRow());
+    if (!controller.getTorrentByIndex(table.getSelectedRow()).isChecking()) {
+      controller.startTorrent(table.getSelectedRow());
+    }
   }
 
   public void updateUi() {

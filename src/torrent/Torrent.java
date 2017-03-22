@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Map;
 
 public class Torrent {
@@ -67,7 +68,7 @@ public class Torrent {
     }
   }
 
-  File torrentFile;
+  private File torrentFile;
   private String announceUrl;
   private long pieceLength;
   private byte[] pieces;
@@ -85,22 +86,25 @@ public class Torrent {
   // NOTE: this is only introduced in BEP23, but required for most modern trackers
   private boolean useCompact = true;
   private byte[] trackerId;
+
   // interval for tracker request in seconds
   private int trackerInterval;
-
   private int seederCount;
   private int leecherCount;
   private long lastTrackerRequestTime;
-  private HashSet<Peer> activePeers;
 
+  private HashSet<Peer> activePeers;
   private HashSet<Peer> inactivePeers;
   private HashSet<Peer> badPeers;
-
   private HashMap<PeerConnection, Thread> activePeerConnections;
 
   private TorrentProgress progress;
 
   private TorrentState state;
+
+  private int haveInterval = 1000;
+  private long lastHaveTime;
+  private LinkedList<Integer> haveQueue;
 
   // to not break old test cases
   public Torrent(String filename) throws FileNotFoundException, InvalidTorrentFileException {
@@ -124,6 +128,7 @@ public class Torrent {
     uploaded = 0;
     numberOfPieces = (int) (((totalSize + pieceLength) - 1) / pieceLength);
     progress = new TorrentProgress(numberOfPieces);
+    haveQueue = new LinkedList<Integer>();
 
     System.out.println("number of pices:" + numberOfPieces);
 
@@ -139,21 +144,8 @@ public class Torrent {
   }
 
   public synchronized void addPeer(Peer p) {
-    try {
-      if ((!activePeers.contains(p)) && (!inactivePeers.contains(p)) && (!badPeers.contains(p))) {
-        // check if it is our own client and put directly to the bad peers
-        // otherwise put in inactive by default
-        String ip = p.address.getHostAddress();
-        String localIp;
-        localIp = InetAddress.getLocalHost().getHostAddress();
-        if ((ip.equals(localIp) || ip.equals("127.0.0.1")) && (p.port == port)) {
-          markPeerBad(p);
-        } else {
-          inactivePeers.add(p);
-        }
-      }
-    } catch (UnknownHostException e) {
-      System.out.println("unknownhost exception");
+    if ((!activePeers.contains(p)) && (!inactivePeers.contains(p)) && (!badPeers.contains(p))) {
+      inactivePeers.add(p);
     }
   }
 
@@ -180,12 +172,6 @@ public class Torrent {
     byte[] recievedHash = sha1(data);
     byte[] expectedHash = getControlHash(index);
     return Arrays.equals(recievedHash, expectedHash);
-  }
-
-  public void checkIfDone() {
-    if (progress.isDone() && (state == TorrentState.Downloading)) {
-      state = TorrentState.Seeding;
-    }
   }
 
   public void checkProgress() {
@@ -378,6 +364,10 @@ public class Torrent {
     return inactivePeers.size() > 0;
   }
 
+  public boolean isChecking() {
+    return state == TorrentState.Checking;
+  }
+
   public boolean isDowloading() {
     return state == TorrentState.Downloading;
   }
@@ -529,6 +519,10 @@ public class Torrent {
     }
   }
 
+  public synchronized void sendHave(int index) {
+    haveQueue.add(index);
+  }
+
   public synchronized void setState(TorrentState state) {
     this.state = state;
   }
@@ -584,11 +578,39 @@ public class Torrent {
       BencodeParser parser = new BencodeParser(in);
       BencodeDictionary response = parser.readDictionary();
       parseTrackerResponse(response);
-      lastTrackerRequestTime = System.currentTimeMillis();
+
+      lastTrackerRequestTime = System.currentTimeMillis() / 1000;
     } catch (IOException e) {
       System.out.println("tracker request error");
       e.printStackTrace();
       System.out.println(e.getMessage());
+    }
+  }
+
+  public void update() {
+    if ((isDowloading()) && progress.isDone()) {
+      state = TorrentState.Seeding;
+      trackerRequest("completed");
+    }
+    if (isDowloading() || isSeeding()) {
+      long passedTime = (System.currentTimeMillis() / 1000) - lastTrackerRequestTime;
+      if (((trackerInterval > 0) && (passedTime > trackerInterval))
+          || ((trackerInterval == 0) && (passedTime > 300))) {
+        trackerRequest();
+      }
+    }
+    if ((lastHaveTime == 0) || ((System.currentTimeMillis() - lastHaveTime) > haveInterval)) {
+      while (!haveQueue.isEmpty()) {
+        int i = haveQueue.remove();
+        for (PeerConnection pc : activePeerConnections.keySet()) {
+          try {
+            pc.sendHave(i);
+          } catch (IOException e) {
+            System.out.println("Error sending have");
+          }
+        }
+      }
+      lastHaveTime = System.currentTimeMillis();
     }
   }
 
