@@ -1,12 +1,5 @@
 package torrent;
 
-import bencode.BencodeByteString;
-import bencode.BencodeDictionary;
-import bencode.BencodeElem;
-import bencode.BencodeInteger;
-import bencode.BencodeList;
-import bencode.BencodeParser;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -27,6 +20,14 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.Set;
+
+import bencode.BencodeByteString;
+import bencode.BencodeDictionary;
+import bencode.BencodeElem;
+import bencode.BencodeInteger;
+import bencode.BencodeList;
+import bencode.BencodeParser;
 
 public class Torrent {
 
@@ -203,10 +204,7 @@ public class Torrent {
         Socket s = new Socket(p.address, p.port);
         PeerConnection pc = new PeerConnection(s, peerId, p);
         pc.assignTorrent(this);
-        Thread th = new Thread(pc);
-        th.start();
-        activePeerConnections.put(pc, th);
-        markPeerActive(p);
+        addConnection(pc);
       } catch (IOException e) {
         markPeerBad(p);
         System.out.println("Error opening Socket to " + p);
@@ -234,6 +232,9 @@ public class Torrent {
   }
 
   public synchronized void deactivateConncetion(PeerConnection pc) {
+    if (!badPeers.contains(pc.getPeer())) {
+      markPeerInactive(pc.getPeer());
+    }
     activePeerConnections.remove(pc);
   }
 
@@ -246,6 +247,13 @@ public class Torrent {
     }
   }
 
+  public ArrayList<PeerConnection> getActivePeers() {
+    Set<PeerConnection> cons = activePeerConnections.keySet();
+    ArrayList<PeerConnection> list = new ArrayList<PeerConnection>();
+    list.addAll(cons);
+    return list;
+  }
+
   private byte[] getControlHash(int piece) {
     byte[] hash = new byte[20];
     for (int i = 0; i < hash.length; i++) {
@@ -255,6 +263,7 @@ public class Torrent {
   }
 
   public Peer getInactivePeer() {
+    System.out.println("getting inactive Peer");
     Iterator<Peer> it = inactivePeers.iterator();
     if (it.hasNext()) {
       return it.next();
@@ -392,6 +401,7 @@ public class Torrent {
   }
 
   public synchronized void markPeerBad(Peer p) {
+    System.out.println("marking " + p + " as bad");
     activePeers.remove(p);
     inactivePeers.remove(p);
     badPeers.add(p);

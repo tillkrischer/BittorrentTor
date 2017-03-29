@@ -51,6 +51,7 @@ public class Listener implements Runnable {
             }
           } else {
             System.out.println("ignoring myself");
+            pc.endConnection();
           }
         } catch (IOException e) {
           System.out.println("error opening peerconnection");

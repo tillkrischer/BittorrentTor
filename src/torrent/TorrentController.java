@@ -26,7 +26,7 @@ public class TorrentController implements Runnable {
   private int port = 6881;
   private String downloadDir = "test/downloads/";
   public int maxConnections = 20;
-  public int maxConnectionsPerTorrent = 1;
+  public int maxConnectionsPerTorrent = 5;
 
   // pretend we are deluge
   private String clientIdent = "-DE13D0-";
@@ -67,7 +67,11 @@ public class TorrentController implements Runnable {
   }
 
   public Torrent getTorrentByIndex(int i) {
-    return torrents.get(i);
+    try {
+      return torrents.get(i);
+    } catch (IndexOutOfBoundsException e) {
+      return null;
+    }
   }
 
   @Override
@@ -91,6 +95,7 @@ public class TorrentController implements Runnable {
       count += peers;
       if (t.isDowloading() && t.hasInactivePeers() && (peers < maxConnectionsPerTorrent)
           && (peerConnections < maxConnections)) {
+        System.out.println("add a new peer");
         t.connectToPeer();
       }
     }

@@ -40,14 +40,19 @@ public class TorrentUi implements ActionListener {
 
   private TorrentController controller;
   private JFrame frame;
-  private TorrentTableModel model;
-  private JTable table;
+  private TorrentTableModel torrentTableModel;
+  private JTable torrentTable;
+  private PeerTableModel peerTableModel;
+  private JTable peerTable;
 
   private Timer timer;
 
   public TorrentUi() {
     controller = new TorrentController();
-    model = new TorrentTableModel(controller);
+    torrentTableModel = new TorrentTableModel(controller);
+    torrentTable = getTorrentTable();
+    peerTableModel = new PeerTableModel(controller, torrentTable);
+    peerTable = getPeerTable();
     Thread t = new Thread(controller);
     t.start();
 
@@ -116,8 +121,7 @@ public class TorrentUi implements ActionListener {
     c.ipadx = 800;
     c.weightx = 0.5;
     c.weighty = 0.5;
-    table = getTable();
-    pane.add(new JScrollPane(table), c);
+    pane.add(new JScrollPane(torrentTable), c);
 
     c = new GridBagConstraints();
     c.gridx = 0;
@@ -127,8 +131,7 @@ public class TorrentUi implements ActionListener {
     c.ipady = 200;
     c.weightx = 1.0;
     c.weighty = 0.0;
-    button = new JButton("Button 4");
-    pane.add(button, c);
+    pane.add(new JScrollPane(peerTable), c);
   }
 
   public void addTorrent() {
@@ -177,9 +180,15 @@ public class TorrentUi implements ActionListener {
     return controls;
   }
 
-  public JTable getTable() {
+  public JTable getPeerTable() {
     JTable table = new JTable();
-    table.setModel(model);
+    table.setModel(peerTableModel);
+    return table;
+  }
+
+  public JTable getTorrentTable() {
+    JTable table = new JTable();
+    table.setModel(torrentTableModel);
     table.setRowSelectionAllowed(true);
     table.getColumn("Progress").setCellRenderer(new ProgressCellRender());
     return table;
@@ -190,16 +199,17 @@ public class TorrentUi implements ActionListener {
   }
 
   public void startTorrent() {
-    if (!controller.getTorrentByIndex(table.getSelectedRow()).isChecking()) {
-      controller.startTorrent(table.getSelectedRow());
+    if (!controller.getTorrentByIndex(torrentTable.getSelectedRow()).isChecking()) {
+      controller.startTorrent(torrentTable.getSelectedRow());
     }
   }
 
   public void updateUi() {
-    int selected = table.getSelectedRow();
-    model.fireTableDataChanged();
+    int selected = torrentTable.getSelectedRow();
+    torrentTableModel.fireTableDataChanged();
+    peerTableModel.fireTableDataChanged();
     if (selected != -1) {
-      table.setRowSelectionInterval(selected, selected);
+      torrentTable.setRowSelectionInterval(selected, selected);
     }
   }
 }

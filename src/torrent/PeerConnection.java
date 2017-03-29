@@ -10,7 +10,7 @@ import java.util.Arrays;
 public class PeerConnection implements Runnable {
 
   private final int blocksize = 16384;
-  private final int requestQueueSize = 1;
+  private final int requestQueueSize = 5;
 
   private Socket socket;
   private BufferedInputStream in;
@@ -81,8 +81,10 @@ public class PeerConnection implements Runnable {
     if (downloadingPiece != null) {
       progress.setMissing(downloadingPiece.getIndex());
     }
-    torrent.deactivateConncetion(this);
-    torrent.markPeerInactive(peer);
+    // when calling from Listener torrent might not exist
+    if (torrent != null) {
+      torrent.deactivateConncetion(this);
+    }
     try {
       out.close();
       in.close();
@@ -94,6 +96,10 @@ public class PeerConnection implements Runnable {
 
   public Peer getPeer() {
     return peer;
+  }
+
+  public String getRemotePeerId() {
+    return new String(remotePeerId);
   }
 
   public boolean isConnected() {
@@ -219,7 +225,7 @@ public class PeerConnection implements Runnable {
           int begin = (int) Util.bigEndianToInt(number);
           read(number);
           int length = (int) Util.bigEndianToInt(number);
-          log("recived request: index: " + index + " begin: " + begin + " length: " + length);
+          // log("recived request: index: " + index + " begin: " + begin + " length: " + length);
           processRequest(index, begin, length);
           break;
         }
@@ -237,7 +243,7 @@ public class PeerConnection implements Runnable {
           byte[] data = new byte[len - 9];
           read(data);
           // more quiet
-          log("received piece: index: " + index + " begin " + begin + " length " + (len - 9));
+          // log("received piece: index: " + index + " begin " + begin + " length " + (len - 9));
           if (index == downloadingPiece.getIndex()) {
             downloadingPiece.putBlock(begin, data);
             if (downloadingPiece.queueSize() > 0) {
@@ -281,10 +287,10 @@ public class PeerConnection implements Runnable {
         System.out.println("succesful handshake with " + peer + " " + new String(peerId));
         isConnected = true;
       } catch (IOException e) {
-        System.out.println("IOError during handshake");
-        e.printStackTrace();
+        log("IOError during handshake");
         torrent.markPeerBad(peer);
         endConnection();
+        return;
       }
     }
     try {
@@ -356,7 +362,7 @@ public class PeerConnection implements Runnable {
     byte[] piece = Util.intToBigEndian(i, 4);
     out.write(piece);
     out.flush();
-    log("send have");
+    // log("send have");
   }
 
   public synchronized void sendInterested() throws IOException {
@@ -379,7 +385,7 @@ public class PeerConnection implements Runnable {
     out.write(block);
     out.flush();
     // to noisy
-    log("send piece: index: " + index + " begin: " + begin);
+    // log("send piece: index: " + index + " begin: " + begin);
   }
 
   public synchronized void sendRequest(int index, int block, int length) throws IOException {
@@ -395,7 +401,7 @@ public class PeerConnection implements Runnable {
     out.write(lengthBytes);
     out.flush();
     // to noisy
-    log("send request: index: " + index + " begin: " + begin + " length: " + length);
+    // log("send request: index: " + index + " begin: " + begin + " length: " + length);
   }
 
   public synchronized void sendUnchoke() throws IOException {
