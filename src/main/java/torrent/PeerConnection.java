@@ -6,12 +6,15 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.net.Socket;
 import java.util.Arrays;
+import java.util.HashSet;
 
 public class PeerConnection implements Runnable {
 
   private final int blocksize = 16384;
-  private final int requestQueueSize = 5;
+  private final int requestQueueSize = 3;
 
+  private boolean debugOutput = false;
+  
   private Socket socket;
   private BufferedInputStream in;
   private BufferedOutputStream out;
@@ -25,7 +28,8 @@ public class PeerConnection implements Runnable {
   private boolean peerChocking;
   private Peer peer;
   private boolean isConnected;
-  private boolean[] peerPieces;
+  //private boolean[] peerPieces;
+  private HashSet<Integer> peerPieces;
   private TorrentProgress progress;
   private int seedingPieceIndex;
   private byte[] seedingPieceData;
@@ -44,12 +48,13 @@ public class PeerConnection implements Runnable {
     isConnected = false;
 
     remotePeerId = new byte[20];
+    
+    peerPieces = new HashSet<Integer>();
   }
 
   public void assignTorrent(Torrent t) {
     torrent = t;
     progress = torrent.getProgress();
-    peerPieces = new boolean[torrent.getNumberOfPieces()];
   }
 
   public void downloadPiece() throws IOException, InvalidMessageException {
@@ -107,12 +112,7 @@ public class PeerConnection implements Runnable {
   }
 
   public boolean isLeecher() {
-    for (boolean b : peerPieces) {
-      if (!b) {
-        return true;
-      }
-    }
-    return false;
+    return peerPieces.size() < torrent.getNumberOfPieces();
   }
 
   private void log(String msg) {
@@ -120,7 +120,7 @@ public class PeerConnection implements Runnable {
   }
 
   public void processRequest(int index, int begin, int length) throws IOException {
-    if (seedingPieceIndex != index) {
+    if (seedingPieceData == null || seedingPieceIndex != index) {
       seedingPieceData = torrent.getPiece(index);
       seedingPieceIndex = index;
     }
@@ -200,6 +200,7 @@ public class PeerConnection implements Runnable {
         }
         case 4: {
           // have
+          // if(debugOutput) log("recived have");
           log("recived have");
           read(number);
           int pieceindex = (int) Util.bigEndianToInt(number);
@@ -225,7 +226,7 @@ public class PeerConnection implements Runnable {
           int begin = (int) Util.bigEndianToInt(number);
           read(number);
           int length = (int) Util.bigEndianToInt(number);
-          // log("recived request: index: " + index + " begin: " + begin + " length: " + length);
+          if(debugOutput) log("recived request: index: " + index + " begin: " + begin + " length: " + length);
           processRequest(index, begin, length);
           break;
         }
@@ -243,7 +244,7 @@ public class PeerConnection implements Runnable {
           byte[] data = new byte[len - 9];
           read(data);
           // more quiet
-          // log("received piece: index: " + index + " begin " + begin + " length " + (len - 9));
+          if(debugOutput) log("received piece: index: " + index + " begin " + begin + " length " + (len - 9));
           if (index == downloadingPiece.getIndex()) {
             downloadingPiece.putBlock(begin, data);
             if (downloadingPiece.queueSize() > 0) {
@@ -362,7 +363,7 @@ public class PeerConnection implements Runnable {
     byte[] piece = Util.intToBigEndian(i, 4);
     out.write(piece);
     out.flush();
-    // log("send have");
+    if(debugOutput) log("send have");
   }
 
   public synchronized void sendInterested() throws IOException {
@@ -385,7 +386,7 @@ public class PeerConnection implements Runnable {
     out.write(block);
     out.flush();
     // to noisy
-    // log("send piece: index: " + index + " begin: " + begin);
+    if(debugOutput) log("send piece: index: " + index + " begin: " + begin);
   }
 
   public synchronized void sendRequest(int index, int block, int length) throws IOException {
@@ -401,7 +402,7 @@ public class PeerConnection implements Runnable {
     out.write(lengthBytes);
     out.flush();
     // to noisy
-    // log("send request: index: " + index + " begin: " + begin + " length: " + length);
+    if(debugOutput) log("send request: index: " + index + " begin: " + begin + " length: " + length);
   }
 
   public synchronized void sendUnchoke() throws IOException {
@@ -428,7 +429,7 @@ public class PeerConnection implements Runnable {
 
   private void setHaveBit(int index) throws InvalidMessageException {
     if ((index >= 0) && (index < torrent.getNumberOfPieces())) {
-      peerPieces[index] = true;
+      peerPieces.add(index);
     } else {
       throw new InvalidMessageException();
     }
@@ -436,8 +437,9 @@ public class PeerConnection implements Runnable {
 
   private void setHaveBits(byte[] field) throws InvalidMessageException {
     if (field.length == ((torrent.getNumberOfPieces() + 7) / 8)) {
-      for (int i = 0; i < peerPieces.length; i++) {
-        peerPieces[i] = (field[i / 8] & (1 << (8 - 1 - (i % 8)))) > 0;
+      for (int i = 0; i < torrent.getNumberOfPieces(); i++) {
+        if((field[i / 8] & (1 << (8 - 1 - (i % 8)))) > 0)
+          peerPieces.add(i);
       }
     } else {
       throw new InvalidMessageException();

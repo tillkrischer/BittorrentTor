@@ -59,7 +59,7 @@ public class Listener implements Runnable {
         }
       }
     } catch (IOException e) {
-      System.out.println("unable to listen on port");
+      System.out.println("unable to listen on port " + port);
     }
   }
 }

@@ -1,6 +1,8 @@
 package torrent;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Random;
 
 public class TorrentProgress {
 
@@ -8,8 +10,10 @@ public class TorrentProgress {
   HashSet<Integer> downloading;
   HashSet<Integer> downloaded;
   int pieces;
+  Random rand;
 
   public TorrentProgress(int pieces) {
+    rand = new Random();
     missing = new HashSet<Integer>();
     downloading = new HashSet<Integer>();
     downloaded = new HashSet<Integer>();
@@ -19,7 +23,7 @@ public class TorrentProgress {
     }
   }
 
-  public synchronized int claimForDownload(boolean[] peerPieces) {
+  public synchronized int claimForDownload(HashSet<Integer> peerPieces) {
     int piece = getAvailableMissing(peerPieces);
     if (piece != -1) {
       setDownloading(piece);
@@ -27,13 +31,20 @@ public class TorrentProgress {
     return piece;
   }
 
-  public synchronized int getAvailableMissing(boolean[] peerPieces) {
-    for (int i = 0; i < peerPieces.length; i++) {
-      if (missing.contains(i)) {
-        return i;
-      }
+  public synchronized int getAvailableMissing(HashSet<Integer> peerPieces) {
+    ArrayList<Integer> intersection = new ArrayList<Integer>(peerPieces);
+    intersection.retainAll(missing);
+    if (intersection.size() > 0) {
+      return intersection.get(rand.nextInt(intersection.size()));
+    } else {
+      return -1;
     }
-    return -1;
+//    for(int i : missing) {
+//      if(peerPieces.contains(i)) {
+//        return i;
+//      }
+//    }
+//    return -1;
   }
 
   public synchronized boolean isDone() {

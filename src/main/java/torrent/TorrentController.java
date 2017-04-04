@@ -6,6 +6,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Random;
 
+import config.Config;
+import config.ConfigManager;
+
 public class TorrentController implements Runnable {
 
   public static byte[] generatePeerId(String clientIdent) {
@@ -23,8 +26,9 @@ public class TorrentController implements Runnable {
     return id;
   }
 
-  private int port = 6881;
-  private String downloadDir = "test/downloads/";
+  private Config conf;
+  private int port;
+  private String downloadDir;
   public int maxConnections = 20;
   public int maxConnectionsPerTorrent = 5;
 
@@ -40,6 +44,12 @@ public class TorrentController implements Runnable {
     peerId = generatePeerId(clientIdent);
     torrents = new ArrayList<Torrent>();
     infoMap = new HashMap<String, Torrent>();
+    
+    ConfigManager confmanager = new ConfigManager("config.json");
+    conf = confmanager.getConfig();
+    
+    port = conf.port;
+    downloadDir = conf.downloadDir;
 
     Listener listen = new Listener(peerId, this, port);
     Thread listenThread = new Thread(listen);

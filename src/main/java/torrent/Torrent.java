@@ -236,6 +236,7 @@ public class Torrent {
       markPeerInactive(pc.getPeer());
     }
     activePeerConnections.remove(pc);
+    System.out.println("active connections " + activePeerConnections.size());
   }
 
   public long downloaded() {

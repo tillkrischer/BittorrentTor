@@ -68,4 +68,11 @@ public class TorrentTableModel extends AbstractTableModel {
     }
     return null;
   }
+  
+  public void update() {
+    for (int i = 0; i < getRowCount(); i++) {
+      fireTableCellUpdated(i, 2);
+      fireTableCellUpdated(i, 3);
+    }
+  }
 }

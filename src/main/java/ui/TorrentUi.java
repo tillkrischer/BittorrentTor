@@ -19,6 +19,7 @@ import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
+import torrent.Torrent;
 import torrent.TorrentController;
 
 public class TorrentUi implements ActionListener {
@@ -62,7 +63,7 @@ public class TorrentUi implements ActionListener {
         createAndShowGui();
       }
     });
-    timer = new Timer(200, this);
+    timer = new Timer(500, this);
     timer.setActionCommand("update");
     timer.setRepeats(true);
     timer.start();
@@ -143,7 +144,7 @@ public class TorrentUi implements ActionListener {
     fc.showSaveDialog(frame);
     File file = fc.getSelectedFile();
     if (file != null) {
-      AddTorrentWorker worker = new AddTorrentWorker(controller, file.getAbsolutePath());
+      AddTorrentWorker worker = new AddTorrentWorker(controller, file.getAbsolutePath(), torrentTableModel);
       worker.execute();
     }
   }
@@ -199,15 +200,17 @@ public class TorrentUi implements ActionListener {
   }
 
   public void startTorrent() {
-    if (!controller.getTorrentByIndex(torrentTable.getSelectedRow()).isChecking()) {
+    Torrent t = controller.getTorrentByIndex(torrentTable.getSelectedRow());
+    if (t != null && ! t.isChecking()) {
       controller.startTorrent(torrentTable.getSelectedRow());
     }
   }
 
   public void updateUi() {
     int selected = torrentTable.getSelectedRow();
-    torrentTableModel.fireTableDataChanged();
-    peerTableModel.fireTableDataChanged();
+    torrentTableModel.update();
+    peerTableModel.update();
+    peerTable.repaint();
     if (selected != -1) {
       torrentTable.setRowSelectionInterval(selected, selected);
     }
