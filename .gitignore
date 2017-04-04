@@ -1,6 +1,1 @@
-.checkstyle
-.classpath
-.project
-.settings/
-bin/
-test/downloads/
+target/
