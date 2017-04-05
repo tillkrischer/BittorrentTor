@@ -8,6 +8,7 @@ import java.util.Random;
 
 import config.Config;
 import config.ConfigManager;
+import tor.TorManager;
 
 public class TorrentController implements Runnable {
 
@@ -37,6 +38,7 @@ public class TorrentController implements Runnable {
   private byte[] peerId;
   private ArrayList<Torrent> torrents;
   private HashMap<String, Torrent> infoMap;
+  private TorManager torManager;
 
   private int peerConnections;
 
@@ -48,6 +50,11 @@ public class TorrentController implements Runnable {
     ConfigManager confmanager = new ConfigManager("config.json");
     conf = confmanager.getConfig();
     
+    if (conf.useTor) {
+      torManager = new TorManager(conf.torPort, conf.port, conf.torBinary);
+      torManager.launchTor();
+    }
+    
     port = conf.port;
     downloadDir = conf.downloadDir;
 
@@ -55,10 +62,21 @@ public class TorrentController implements Runnable {
     Thread listenThread = new Thread(listen);
     listenThread.start();
   }
+  
+  public void end() {
+    if (torManager != null) {
+      torManager.killTor();
+    }
+  }
 
   public synchronized void addTorrent(String filename)
       throws FileNotFoundException, InvalidTorrentFileException {
-    Torrent t = new Torrent(filename, peerId, port, downloadDir);
+    Torrent t;
+    if (conf.useTor) {
+      t = new Torrent(filename, peerId, port, downloadDir, torManager);
+    } else {
+      t = new Torrent(filename, peerId, port, downloadDir);
+    }
     torrents.add(t);
     System.out.println(Arrays.toString(t.getInfoHash()));
     infoMap.put(Util.byteArrayToHex(t.getInfoHash()), t);

@@ -4,3 +4,4 @@ target/
 downloads/
 .settings/
 config.json
+tor-data/

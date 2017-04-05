@@ -23,7 +23,7 @@ public class Listener implements Runnable {
       ServerSocket serverSocket = new ServerSocket(port);
       while (true) {
         Socket clientSocket = serverSocket.accept();
-        Peer p = new Peer();
+        IpPeer p = new IpPeer();
         p.address = clientSocket.getInetAddress();
         p.port = clientSocket.getPort();
         System.out.println("client connected from " + clientSocket.getInetAddress() + ":"

@@ -8,6 +8,8 @@ import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.Socket;
 import java.net.URL;
 import java.net.UnknownHostException;
@@ -28,6 +30,7 @@ import bencode.BencodeElem;
 import bencode.BencodeInteger;
 import bencode.BencodeList;
 import bencode.BencodeParser;
+import tor.TorManager;
 
 public class Torrent {
 
@@ -98,18 +101,26 @@ public class Torrent {
   private HashSet<Peer> inactivePeers;
   private HashSet<Peer> badPeers;
   private HashMap<PeerConnection, Thread> activePeerConnections;
-
   private TorrentProgress progress;
-
   private TorrentState state;
 
   private int haveInterval = 1000;
   private long lastHaveTime;
   private LinkedList<Integer> haveQueue;
 
+  private boolean torMode = false;
+  private TorManager torMan;
+
   // to not break old test cases
   public Torrent(String filename) throws FileNotFoundException, InvalidTorrentFileException {
     this(filename, TorrentController.generatePeerId("-DE13D0-"), 6881, "test/downloads/");
+  }
+
+  public Torrent(String filename, byte[] peerId, int port, String downloadDir, TorManager torm)
+      throws InvalidTorrentFileException, FileNotFoundException {
+    this(filename, peerId, port, downloadDir);
+    torMode = true;
+    torMan = torm;
   }
 
   public Torrent(String filename, byte[] peerId, int port, String downloadDir)
@@ -199,15 +210,36 @@ public class Torrent {
   public synchronized void connectToPeer() {
     Peer p = getInactivePeer();
     if (p != null) {
-      try {
-        System.out.println("trying to connect to peer " + p);
-        Socket s = new Socket(p.address, p.port);
-        PeerConnection pc = new PeerConnection(s, peerId, p);
-        pc.assignTorrent(this);
-        addConnection(pc);
-      } catch (IOException e) {
-        markPeerBad(p);
-        System.out.println("Error opening Socket to " + p);
+      if (torMode) {
+        if (p instanceof TorPeer) {
+          TorPeer tp = (TorPeer) p;
+          try {
+            System.out.println("trying to connect to peer " + p);
+            Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", torMan.getTorPort()));
+            Socket s = new Socket(proxy);
+            s.connect(new InetSocketAddress(tp.hostname, tp.port));
+            PeerConnection pc = new PeerConnection(s, peerId, p);
+            pc.assignTorrent(this);
+            addConnection(pc);
+          } catch (IOException e) {
+            markPeerBad(p);
+            System.out.println("Error opening Socket to " + p);
+          }
+        } 
+      } else {
+        if (p instanceof IpPeer) {
+          IpPeer ipp = (IpPeer) p;
+          try {
+            System.out.println("trying to connect to peer " + p);
+            Socket s = new Socket(ipp.address, ipp.port);
+            PeerConnection pc = new PeerConnection(s, peerId, p);
+            pc.assignTorrent(this);
+            addConnection(pc);
+          } catch (IOException e) {
+            markPeerBad(p);
+            System.out.println("Error opening Socket to " + p);
+          }
+        } 
       }
     } else {
       System.out.println("no inactive peers");
@@ -568,6 +600,9 @@ public class Torrent {
       parameters.put("uploaded", Long.toString(uploaded));
       parameters.put("downloaded", Long.toString(downloaded()));
       parameters.put("left", Long.toString(totalSize - downloaded()));
+      if (torMode) {
+        parameters.put("address", torMan.getHostname());
+      }
       if (useCompact) {
         parameters.put("compact", "1");
       } else {
@@ -635,7 +670,7 @@ public class Torrent {
         }
         for (int i = 0; i < (peerData.length / 6); i++) {
           try {
-            Peer p = new Peer();
+            IpPeer p = new IpPeer();
             byte[] ip = new byte[4];
             for (int j = 0; j < ip.length; j++) {
               ip[j] = peerData[(i * 6) + j];
@@ -655,22 +690,35 @@ public class Torrent {
       } else if (peers instanceof BencodeList) {
         BencodeList peerList = (BencodeList) peers;
         for (BencodeElem elem : peerList.list) {
-          try {
-            BencodeDictionary entry = (BencodeDictionary) elem;
-            if ((!(entry.dict.containsKey("ip"))) || (!(entry.dict.containsKey("port")))) {
-              throw new InvalidTrackerResponseException();
+          BencodeDictionary entry = (BencodeDictionary) elem;
+          if (!(entry.dict.containsKey("port"))) {
+            throw new InvalidTrackerResponseException();
+          }
+          BencodeInteger port = (BencodeInteger) entry.dict.get("port");
+          if (entry.dict.containsKey("ip")) {
+            if (! torMode) {
+              try {
+                BencodeByteString ip = (BencodeByteString) entry.dict.get("ip");
+                IpPeer p = new IpPeer();
+                p.address = InetAddress.getByName(ip.getValue());
+                p.port = port.value;
+                addPeer(p);
+              } catch (UnknownHostException e) {
+                System.out.println("unknown host exception");
+              }
             }
-            BencodeByteString ip = (BencodeByteString) entry.dict.get("ip");
-            BencodeInteger port = (BencodeInteger) entry.dict.get("port");
-            Peer p = new Peer();
-            p.address = InetAddress.getByName(ip.getValue());
-            p.port = port.value;
-            addPeer(p);
-          } catch (UnknownHostException e) {
-            System.out.println("UnknowHostException");
+          } else if(entry.dict.containsKey("address")) {
+            if (torMode) {
+              BencodeByteString address = (BencodeByteString) entry.dict.get("address");
+              TorPeer p = new TorPeer();
+              p.hostname = address.getValue();
+              p.port = port.value;
+              addPeer(p);
+            }
+          } else {
+            throw new InvalidTrackerResponseException();
           }
         }
-
       } else {
         throw new InvalidTrackerResponseException();
       }

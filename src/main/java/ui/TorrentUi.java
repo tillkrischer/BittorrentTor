@@ -150,8 +150,8 @@ public class TorrentUi implements ActionListener {
   }
 
   private void createAndShowGui() {
-    frame = new JFrame("Torrent");
-    frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    frame = new TorrentUiFrame("Torrent", controller);
+    frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
     addComponentsToPane(frame.getContentPane());
 
