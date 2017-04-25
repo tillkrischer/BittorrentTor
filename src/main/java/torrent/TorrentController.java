@@ -51,7 +51,7 @@ public class TorrentController implements Runnable {
     conf = confmanager.getConfig();
     
     if (conf.useTor) {
-      torManager = new TorManager(conf.torPort, conf.port, conf.torBinary);
+      torManager = new TorManager(conf.torPort, conf.port, conf.torBinary, conf.orPort);
       torManager.launchTor();
     }
     

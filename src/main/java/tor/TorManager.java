@@ -15,8 +15,10 @@ public class TorManager {
   private String torExecutable;
   private Process torProcess;
   private String hostname = "";
+  private int orPort;
 
-  public TorManager(int torPort, int port, String torExecutable) {
+  public TorManager(int torPort, int port, String torExecutable, int orPort) {
+    this.orPort = orPort;
     this.port = port;
     this.torPort = torPort;
     this.torExecutable = torExecutable;
@@ -77,6 +79,7 @@ public class TorManager {
         line = line.replaceAll("\\$datadir", System.getProperty("user.dir") + "/" + dataDir);
         line = line.replaceAll("\\$torport", Integer.toString(torPort));
         line = line.replaceAll("\\$port", Integer.toString(port));
+        line = line.replaceAll("\\$orport", Integer.toString(orPort));
         fw.write(line + '\n');
       }
       fw.close();
