@@ -16,8 +16,10 @@ public class TorManager {
   private Process torProcess;
   private String hostname = "";
   private int orPort;
+  private String[] dirs;
 
-  public TorManager(int torPort, int port, String torExecutable, int orPort) {
+  public TorManager(int torPort, int port, String torExecutable, int orPort, String[] dirs) {
+    this.dirs = dirs;
     this.orPort = orPort;
     this.port = port;
     this.torPort = torPort;
@@ -80,6 +82,9 @@ public class TorManager {
         line = line.replaceAll("\\$torport", Integer.toString(torPort));
         line = line.replaceAll("\\$port", Integer.toString(port));
         line = line.replaceAll("\\$orport", Integer.toString(orPort));
+        line = line.replaceAll("\\$dir1", dirs[0]);
+        line = line.replaceAll("\\$dir2", dirs[1]);
+        line = line.replaceAll("\\$dir3", dirs[2]);
         fw.write(line + '\n');
       }
       fw.close();

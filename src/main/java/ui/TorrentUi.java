@@ -7,6 +7,8 @@ import java.awt.GridBagLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
+import java.net.Inet4Address;
+import java.net.UnknownHostException;
 
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
@@ -25,6 +27,7 @@ import torrent.TorrentController;
 public class TorrentUi implements ActionListener {
 
   public static void main(String[] args) {
+    
     try {
       UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
     } catch (UnsupportedLookAndFeelException e) {

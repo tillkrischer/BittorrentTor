@@ -1,6 +1,8 @@
 package torrent;
 
 import java.io.FileNotFoundException;
+import java.net.Inet4Address;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -39,6 +41,7 @@ public class TorrentController implements Runnable {
   private ArrayList<Torrent> torrents;
   private HashMap<String, Torrent> infoMap;
   private TorManager torManager;
+  private DhtPeerProvider dht;
 
   private int peerConnections;
 
@@ -51,8 +54,23 @@ public class TorrentController implements Runnable {
     conf = confmanager.getConfig();
     
     if (conf.useTor) {
-      torManager = new TorManager(conf.torPort, conf.port, conf.torBinary, conf.orPort);
+      torManager = new TorManager(conf.torPort, conf.port, conf.torBinary, conf.orPort, conf.dirs);
       torManager.launchTor();
+    }
+   
+    try {
+    if (conf.useDht) {
+      String address = "";
+      if (conf.useTor) {
+        address = torManager.getHostname();
+      } else {
+        address = Inet4Address.getLocalHost().getHostAddress();
+      }
+      dht = new DhtPeerProvider(conf.dhtPort, address, conf.port, conf.useTor);
+      dht.bootstrap(conf.dhtBootstrapAddress, conf.dhtBootstrapPort);
+    }
+    } catch (UnknownHostException e) {
+      System.out.println("unknown hosts");
     }
     
     port = conf.port;
@@ -73,9 +91,17 @@ public class TorrentController implements Runnable {
       throws FileNotFoundException, InvalidTorrentFileException {
     Torrent t;
     if (conf.useTor) {
-      t = new Torrent(filename, peerId, port, downloadDir, torManager);
+      if(conf.useDht) {
+        t = new Torrent(filename, peerId, port, downloadDir, torManager, dht);
+      } else {
+        t = new Torrent(filename, peerId, port, downloadDir, torManager);
+      }
     } else {
-      t = new Torrent(filename, peerId, port, downloadDir);
+      if(conf.useDht) {
+        t = new Torrent(filename, peerId, port, downloadDir, dht);
+      } else {
+        t = new Torrent(filename, peerId, port, downloadDir);
+      }
     }
     torrents.add(t);
     System.out.println(Arrays.toString(t.getInfoHash()));

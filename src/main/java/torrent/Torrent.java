@@ -46,20 +46,6 @@ public class Torrent {
     }
   }
 
-  private static String percentEncode(byte[] data) {
-    StringBuilder sb = new StringBuilder();
-    for (byte b : data) {
-      if (Character.isAlphabetic(b) || Character.isDigit(b) || (b == '.') || (b == '-')
-          || (b == '_') || (b == '~') || (b == '$') || (b == '+') || (b == '!') || (b == '*')
-          || (b == '\'') || (b == '(') || (b == ')') || (b == ',')) {
-        sb.append((char) b);
-      } else {
-        sb.append("%" + String.format("%02x", b));
-      }
-    }
-    return sb.toString();
-  }
-
   // TODO: maybe put this somewhere else
   public static byte[] sha1(byte[] data) {
     try {
@@ -88,14 +74,14 @@ public class Torrent {
   private int port;
   private String downloadDir;
   // NOTE: this is only introduced in BEP23, but required for most modern trackers
-  private boolean useCompact = true;
   private byte[] trackerId;
 
   // interval for tracker request in seconds
   private int trackerInterval;
   private int seederCount;
   private int leecherCount;
-  private long lastTrackerRequestTime;
+  private long lastAnnounceTime;
+  private int announceInterval = 60;
 
   private HashSet<Peer> activePeers;
   private HashSet<Peer> inactivePeers;
@@ -110,34 +96,52 @@ public class Torrent {
 
   private boolean torMode = false;
   private TorManager torMan;
-
-  // to not break old test cases
-  public Torrent(String filename) throws FileNotFoundException, InvalidTorrentFileException {
-    this(filename, TorrentController.generatePeerId("-DE13D0-"), 6881, "test/downloads/");
+  
+  private TrackerPeerProvider tracker;
+  private boolean useDht;
+  private DhtPeerProvider dht;
+  
+  public Torrent(String filename, byte[] peerId, int port, String downloadDir, TorManager torm, DhtPeerProvider dht)
+      throws InvalidTorrentFileException, FileNotFoundException {
+    this(filename, peerId, port, downloadDir);
+    torMode = true;
+    setTorMan(torm);
+    useDht = true;
+    this.dht = dht;
+  }
+  
+  public Torrent(String filename, byte[] peerId, int port, String downloadDir, DhtPeerProvider dht) throws FileNotFoundException, InvalidTorrentFileException {
+    this(filename, peerId, port, downloadDir);
+    useDht = true;
+    this.dht = dht;
   }
 
   public Torrent(String filename, byte[] peerId, int port, String downloadDir, TorManager torm)
       throws InvalidTorrentFileException, FileNotFoundException {
     this(filename, peerId, port, downloadDir);
     torMode = true;
-    torMan = torm;
+    setTorMan(torm);
   }
 
   public Torrent(String filename, byte[] peerId, int port, String downloadDir)
       throws InvalidTorrentFileException, FileNotFoundException {
     this.state = TorrentState.Paused;
-    this.peerId = peerId;
-    this.port = port;
+    this.setPeerId(peerId);
+    this.setPort(port);
     this.downloadDir = downloadDir;
-
+    this.lastAnnounceTime = 0;
+   
     torrentFile = new File(filename);
     parseTorrent();
+    if (getAnnounceUrl() != null) {
+      tracker = new TrackerPeerProvider(this, torMode);
+    }
     activePeerConnections = new HashMap<PeerConnection, Thread>();
     activePeers = new HashSet<Peer>();
     inactivePeers = new HashSet<Peer>();
     badPeers = new HashSet<Peer>();
     totalSize = calculateLength();
-    uploaded = 0;
+    setUploaded(0);
     numberOfPieces = (int) (((totalSize + pieceLength) - 1) / pieceLength);
     progress = new TorrentProgress(numberOfPieces);
     haveQueue = new LinkedList<Integer>();
@@ -215,10 +219,10 @@ public class Torrent {
           TorPeer tp = (TorPeer) p;
           try {
             System.out.println("trying to connect to peer " + p);
-            Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", torMan.getTorPort()));
+            Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", getTorMan().getTorPort()));
             Socket s = new Socket(proxy);
             s.connect(new InetSocketAddress(tp.hostname, tp.port));
-            PeerConnection pc = new PeerConnection(s, peerId, p);
+            PeerConnection pc = new PeerConnection(s, getPeerId(), p);
             pc.assignTorrent(this);
             addConnection(pc);
           } catch (IOException e) {
@@ -232,7 +236,7 @@ public class Torrent {
           try {
             System.out.println("trying to connect to peer " + p);
             Socket s = new Socket(ipp.address, ipp.port);
-            PeerConnection pc = new PeerConnection(s, peerId, p);
+            PeerConnection pc = new PeerConnection(s, getPeerId(), p);
             pc.assignTorrent(this);
             addConnection(pc);
           } catch (IOException e) {
@@ -244,23 +248,6 @@ public class Torrent {
     } else {
       System.out.println("no inactive peers");
     }
-  }
-
-  private String constructUrl(String base, HashMap<String, String> parameters) {
-    StringBuilder url = new StringBuilder();
-    url.append(base);
-    url.append('?');
-    boolean first = true;
-    for (Map.Entry<String, String> entry : parameters.entrySet()) {
-      if (!first) {
-        url.append('&');
-      }
-      url.append(entry.getKey());
-      url.append('=');
-      url.append(entry.getValue());
-      first = false;
-    }
-    return url.toString();
   }
 
   public synchronized void deactivateConncetion(PeerConnection pc) {
@@ -458,12 +445,10 @@ public class Torrent {
       torrent = parser.readDictionary();
       in.close();
 
-      // need an announce
-      if (!torrent.dict.containsKey("announce")) {
-        throw new InvalidTorrentFileException();
+      if (torrent.dict.containsKey("announce")) {
+        BencodeByteString a = (BencodeByteString) torrent.dict.get("announce");
+        setAnnounceUrl(a.getValue());
       }
-      BencodeByteString a = (BencodeByteString) torrent.dict.get("announce");
-      announceUrl = a.getValue();
 
       // info dictionary
       if (!torrent.dict.containsKey("info")) {
@@ -525,42 +510,6 @@ public class Torrent {
     }
   }
 
-  private void parseTrackerResponse(BencodeDictionary response) {
-    try {
-      if (response.dict.containsKey("failure reason")) {
-        System.out.println("Tracker request failure:");
-        BencodeByteString reason = (BencodeByteString) response.dict.get("failure reason");
-        System.out.println(reason.getValue());
-        return;
-      }
-      if (response.dict.containsKey("interval")) {
-        BencodeInteger interv = (BencodeInteger) response.dict.get("interval");
-        trackerInterval = interv.value;
-      }
-      if (response.dict.containsKey("tracker id")) {
-        BencodeByteString id = (BencodeByteString) response.dict.get("tracker id");
-        trackerId = id.data;
-      }
-      if (response.dict.containsKey("complete")) {
-        BencodeInteger completeCount = (BencodeInteger) response.dict.get("complete");
-        seederCount = completeCount.value;
-      }
-      if (response.dict.containsKey("incomplete")) {
-        BencodeInteger incompleteCount = (BencodeInteger) response.dict.get("incomplete");
-        leecherCount = incompleteCount.value;
-      }
-      if (response.dict.containsKey("peers")) {
-        BencodeElem peers = response.dict.get("peers");
-        updatePeers(peers);
-      } else {
-        throw new InvalidTrackerResponseException();
-      }
-    } catch (ClassCastException exception) {
-      System.out.println("Error parsing tracker response");
-    } catch (InvalidTrackerResponseException e) {
-      System.out.println("Error parsing tracker response");
-    }
-  }
 
   public synchronized void sendHave(int index) {
     haveQueue.add(index);
@@ -574,75 +523,52 @@ public class Torrent {
     System.out.println("starting torrent");
     if (progress.isDone()) {
       state = TorrentState.Seeding;
-      trackerRequest();
+      announce();
     } else {
       state = TorrentState.Downloading;
-      trackerRequest("started");
+      announce("started");
     }
   }
-
+  
+  public void announce() {
+    announce("");
+  }
+  
+  public void announce(String status) {
+    if (tracker != null) {
+      HashSet<Peer> peers = tracker.announce(status, this);
+      for (Peer p : peers) {
+        addPeer(p);
+      }
+    }
+    if (dht != null) {
+      HashSet<Peer> peers = dht.announce(status, this);
+      for (Peer p : peers) {
+        System.out.println("adding peers");
+        addPeer(p);
+      }
+    }
+  }
+  
   public void stop() {
     state = TorrentState.Paused;
     System.out.println("stopping torrent");
     // TODO: actually stop transfer here
   }
 
-  public void trackerRequest() {
-    trackerRequest("");
-  }
-
-  public void trackerRequest(String event) {
-    try {
-      HashMap<String, String> parameters = new HashMap<String, String>();
-      parameters.put("info_hash", percentEncode(infoHash));
-      parameters.put("peer_id", percentEncode(peerId));
-      parameters.put("port", Integer.toString(port));
-      parameters.put("uploaded", Long.toString(uploaded));
-      parameters.put("downloaded", Long.toString(downloaded()));
-      parameters.put("left", Long.toString(totalSize - downloaded()));
-      if (torMode) {
-        parameters.put("address", torMan.getHostname());
-      }
-      if (useCompact) {
-        parameters.put("compact", "1");
-      } else {
-        parameters.put("compact", "0");
-      }
-      if (trackerId != null) {
-        parameters.put("trackerid", percentEncode(trackerId));
-      }
-      if (!event.equals("")) {
-        parameters.put("event", event);
-      }
-      String s = constructUrl(announceUrl, parameters);
-      System.out.println(s);
-
-      URL url = new URL(s);
-      HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-      connection.setRequestMethod("GET");
-      InputStream in = connection.getInputStream();
-      BencodeParser parser = new BencodeParser(in);
-      BencodeDictionary response = parser.readDictionary();
-      parseTrackerResponse(response);
-
-      lastTrackerRequestTime = System.currentTimeMillis() / 1000;
-    } catch (IOException e) {
-      System.out.println("tracker request error");
-      e.printStackTrace();
-      System.out.println(e.getMessage());
-    }
-  }
 
   public void update() {
     if ((isDowloading()) && progress.isDone()) {
       state = TorrentState.Seeding;
-      trackerRequest("completed");
+      announce("completed");
     }
     if (isDowloading() || isSeeding()) {
-      long passedTime = (System.currentTimeMillis() / 1000) - lastTrackerRequestTime;
-      if (((trackerInterval > 0) && (passedTime > trackerInterval))
-          || ((trackerInterval == 0) && (passedTime > 300))) {
-        trackerRequest();
+      long passedTime = (System.currentTimeMillis() / 1000) - lastAnnounceTime;
+      //      if (((trackerInterval > 0) && (passedTime > trackerInterval))
+      //          || ((trackerInterval == 0) && (passedTime > 300))) {
+      if(passedTime > announceInterval) {
+        announce();
+        lastAnnounceTime = (System.currentTimeMillis() / 1000);
       }
     }
     if ((lastHaveTime == 0) || ((System.currentTimeMillis() - lastHaveTime) > haveInterval)) {
@@ -660,73 +586,6 @@ public class Torrent {
     }
   }
 
-  private void updatePeers(BencodeElem peers) throws InvalidTrackerResponseException {
-    try {
-      if (peers instanceof BencodeByteString) {
-        // compact response
-        byte[] peerData = ((BencodeByteString) peers).data;
-        if ((peerData.length % 6) != 0) {
-          throw new InvalidTrackerResponseException();
-        }
-        for (int i = 0; i < (peerData.length / 6); i++) {
-          try {
-            IpPeer p = new IpPeer();
-            byte[] ip = new byte[4];
-            for (int j = 0; j < ip.length; j++) {
-              ip[j] = peerData[(i * 6) + j];
-            }
-            p.address = InetAddress.getByAddress(ip);
-            byte[] port = new byte[2];
-            for (int j = 0; j < port.length; j++) {
-              port[j] = peerData[(i * 6) + 4 + j];
-            }
-            p.port = (int) Util.bigEndianToInt(port);
-            addPeer(p);
-          } catch (UnknownHostException e) {
-            System.out.println("UnknownHostException");
-            e.printStackTrace();
-          }
-        }
-      } else if (peers instanceof BencodeList) {
-        BencodeList peerList = (BencodeList) peers;
-        for (BencodeElem elem : peerList.list) {
-          BencodeDictionary entry = (BencodeDictionary) elem;
-          if (!(entry.dict.containsKey("port"))) {
-            throw new InvalidTrackerResponseException();
-          }
-          BencodeInteger port = (BencodeInteger) entry.dict.get("port");
-          if (entry.dict.containsKey("ip")) {
-            if (! torMode) {
-              try {
-                BencodeByteString ip = (BencodeByteString) entry.dict.get("ip");
-                IpPeer p = new IpPeer();
-                p.address = InetAddress.getByName(ip.getValue());
-                p.port = port.value;
-                addPeer(p);
-              } catch (UnknownHostException e) {
-                System.out.println("unknown host exception");
-              }
-            }
-          } else if(entry.dict.containsKey("address")) {
-            if (torMode) {
-              BencodeByteString address = (BencodeByteString) entry.dict.get("address");
-              TorPeer p = new TorPeer();
-              p.hostname = address.getValue();
-              p.port = port.value;
-              addPeer(p);
-            }
-          } else {
-            throw new InvalidTrackerResponseException();
-          }
-        }
-      } else {
-        throw new InvalidTrackerResponseException();
-      }
-    } catch (ClassCastException exception) {
-      System.out.println("Error parsing peers");
-      throw new InvalidTrackerResponseException();
-    }
-  }
 
   public synchronized boolean writePiece(int index, byte[] data) throws IOException {
     if (!checkHash(index, data)) {
@@ -758,5 +617,69 @@ public class Torrent {
     outFile.file.seek(offset);
     outFile.file.write(data2);
     return true;
+  }
+
+  public byte[] getPeerId() {
+    return peerId;
+  }
+
+  public void setPeerId(byte[] peerId) {
+    this.peerId = peerId;
+  }
+
+  public int getPort() {
+    return port;
+  }
+
+  public void setPort(int port) {
+    this.port = port;
+  }
+
+  public long getUploaded() {
+    return uploaded;
+  }
+
+  public void setUploaded(long uploaded) {
+    this.uploaded = uploaded;
+  }
+
+  public byte[] getTrackerId() {
+    return trackerId;
+  }
+
+  public void setTrackerId(byte[] trackerId) {
+    this.trackerId = trackerId;
+  }
+
+  public TorManager getTorMan() {
+    return torMan;
+  }
+
+  public void setTorMan(TorManager torMan) {
+    this.torMan = torMan;
+  }
+
+  public String getAnnounceUrl() {
+    return announceUrl;
+  }
+
+  public void setAnnounceUrl(String announceUrl) {
+    this.announceUrl = announceUrl;
+  }
+
+  public int getSeederCount() {
+    return seederCount;
+  }
+
+  public void setSeederCount(int seederCount) {
+    this.seederCount = seederCount;
+  }
+
+  public int getLeecherCount() {
+    return leecherCount;
+  }
+
+  public void setLeecherCount(int leecherCount) {
+    this.leecherCount = leecherCount;
   }
 }
