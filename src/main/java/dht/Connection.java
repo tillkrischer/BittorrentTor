@@ -207,10 +207,10 @@ public class Connection {
               }
             }
           }
-          queried.add(unqueried);
         } catch (IOException | InvalidResponseException e) {
           System.out.println("error sending find_node");
         }
+        queried.add(unqueried);
       }
       top8.sort(comp);
       while(top8.size() > Node.maxBucketSize) {
