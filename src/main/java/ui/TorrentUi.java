@@ -116,7 +116,7 @@ public class TorrentUi implements ActionListener {
     c.weightx = 0.0;
     c.weighty = 1.0;
     JButton button = new JButton("Button 2");
-    pane.add(button, c);
+    //pane.add(button, c);
 
     c = new GridBagConstraints();
     c.gridx = 1;
@@ -179,7 +179,7 @@ public class TorrentUi implements ActionListener {
     JButton pause = new JButton("pause");
     pause.setActionCommand("pause");
     pause.addActionListener(this);
-    controls.add(pause);
+    //controls.add(pause);
 
     return controls;
   }

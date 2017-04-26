@@ -33,7 +33,7 @@ public class TorrentController implements Runnable {
   private int port;
   private String downloadDir;
   public int maxConnections = 20;
-  public int maxConnectionsPerTorrent = 5;
+  public int maxConnectionsPerTorrent = 2;
 
   // pretend we are deluge
   private String clientIdent = "-DE13D0-";

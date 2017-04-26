@@ -11,8 +11,8 @@ import java.util.HashSet;
 public class PeerConnection implements Runnable {
 
   //private final int blocksize = 16384;
-  private final int blocksize = 1024;
-  private final int requestQueueSize = 3;
+  private final int blocksize = 512;
+  private final int requestQueueSize = 2;
 
   private boolean debugOutput = false;
   
