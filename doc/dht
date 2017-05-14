@@ -1,0 +1,87 @@
+protocol
+
+ping
+
+request:
+{
+  type: "ping",
+  id: "byte[]"
+}
+
+response:
+same
+
+
+find_node
+
+request:
+{
+  type: "find_node",
+  id: "byte[]",
+  target: "byte[]" 
+}
+
+response:
+{
+  type: "find_node",
+  id: "byte[]",
+  nodes: [ {
+              "id", "byte[]",
+              "ip", "ipaddress",
+              "port", port
+           },
+           ... 
+         ]
+}
+
+get_peers
+
+request:
+{
+  type: "get_peers",
+  id: "byte[]",
+  info_hash: "byte[]",
+}
+
+response1:
+{
+  type: "get_peers_nodes",
+  id: "byte[]",
+  nodes: [ {
+              "id", "byte[]",
+              "ip", "ipaddress",
+              "port", port
+           },
+           ... 
+         ]
+}
+
+response2:
+{
+  type: "get_peers_peers",
+  id: "byte[]",
+  values: [ {
+              "address", "ipaddress",
+              "port", port
+            },
+            ...
+          ]
+}
+
+announce_peer
+
+request:
+{
+  type: "annonce_peer",
+  id: byte[],
+  peer: {
+          address: "address",
+          port: "port"
+        }
+}
+
+response:
+{
+  type: "annonce_peer",
+  id: byte[],
+}

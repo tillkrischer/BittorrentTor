@@ -73,7 +73,6 @@ public class Torrent {
 
   private int port;
   private String downloadDir;
-  // NOTE: this is only introduced in BEP23, but required for most modern trackers
   private byte[] trackerId;
 
   // interval for tracker request in seconds
